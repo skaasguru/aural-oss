@@ -758,6 +758,8 @@ function MicCheck({ done, onDone, language, allowSkip = true }: { done: boolean;
             finish(lastAsrText);
           }
         } else if (msg.type === "error") {
+          // A single utterance failed to transcribe; keep listening so the user can repeat it.
+          if (msg.recoverable === true) return;
           const message = (msg.message as string) || "";
           if (
             isRecoverableRelayErrorMessage(message) &&

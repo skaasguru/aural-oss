@@ -42,3 +42,9 @@ test-results/
 # Misc
 *.pem
 .vercel
+
+# Local supervisor/automation fixtures (not product code)
+automation/
+
+# Local deployment configuration and state
+/deploy/vip-dev/

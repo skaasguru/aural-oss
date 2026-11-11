@@ -3,6 +3,7 @@ import {
     getProvider,
     PRIMARY_GENERATOR_MODEL,
 } from "./registry";
+import { resolveGeneratorModelOverride } from "./model-config";
 import type { GenerationParams, LLMResponse } from "./types";
 
 const log = createLogger("ai/generator-run");
@@ -14,8 +15,14 @@ function pushUnique(chain: string[], model: string) {
 /** Generator model chain for OSS builds: OpenAI first, then configured fallbacks. */
 export function getGeneratorModelChain(): string[] {
   const chain: string[] = [];
+  const override = resolveGeneratorModelOverride();
+  const anyProvider = [process.env.OPENAI_API_KEY, process.env.GEMINI_API_KEY, process.env.KIMI_API_KEY, process.env.MINIMAX_API_KEY].some((key) => key?.trim());
+  // The override takes the place of the OpenAI-slot default: a stock model id would not exist on a
+  // custom OpenAI-compatible gateway. Without an OpenAI key it still leads the chain.
   if (process.env.OPENAI_API_KEY?.trim()) {
-    pushUnique(chain, "gpt-4o-mini");
+    pushUnique(chain, override ?? "gpt-4o-mini");
+  } else if (override && anyProvider) {
+    pushUnique(chain, override);
   }
   if (process.env.GEMINI_API_KEY?.trim()) {
     pushUnique(chain, "gemini-3.1-flash-lite");

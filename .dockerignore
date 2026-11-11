@@ -1,0 +1,17 @@
+.git
+node_modules
+.next
+out
+.env
+.env.*
+!.env.example
+automation
+test-results
+playwright-report
+supabase/.temp
+*.log
+# Deployment state must never enter an image build context.
+**/.env
+**/*.pem
+**/*.key
+deploy

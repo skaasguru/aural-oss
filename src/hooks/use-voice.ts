@@ -1181,6 +1181,12 @@ export function useVoice({
           break;
 
         case "error": {
+          if (msg.recoverable === true) {
+            // The relay session is intact (e.g. one utterance failed to transcribe): tell the user
+            // and keep any pending turn, timers and playback untouched.
+            onError?.((msg.message as string) || "Speech recognition failed; please try again");
+            break;
+          }
           clearResponseWatchdog();
           clearAsrInterimWatchdog();
           clearAsrProcessingTimer();

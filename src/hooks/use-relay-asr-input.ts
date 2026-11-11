@@ -42,12 +42,15 @@ export function useRelayAsrInput({
   onTranscript,
   sharedStream,
   onAudioLevel,
+  onError,
 }: {
   language?: string;
   onTranscript: (text: string) => void;
   /** When set, relay ASR uses this stream instead of opening a second microphone. */
   sharedStream?: MediaStream | null;
   onAudioLevel?: (level: number) => void;
+  /** Sanitized, recoverable relay notice (e.g. one utterance could not be transcribed). */
+  onError?: (message: string) => void;
 }) {
   const connectorRef = useRef<RelayConnector<Record<string, unknown>> | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
@@ -59,6 +62,7 @@ export function useRelayAsrInput({
   const sessionBufferRef = useRef("");
   const onTranscriptRef = useRef(onTranscript);
   const onAudioLevelRef = useRef(onAudioLevel);
+  const onErrorRef = useRef(onError);
   const sharedStreamRef = useRef(sharedStream);
   const ownsMicStreamRef = useRef(true);
   const pendingAudioRef = useRef<string[]>([]);
@@ -67,8 +71,9 @@ export function useRelayAsrInput({
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
     onAudioLevelRef.current = onAudioLevel;
+    onErrorRef.current = onError;
     sharedStreamRef.current = sharedStream;
-  }, [onTranscript, onAudioLevel, sharedStream]);
+  }, [onTranscript, onAudioLevel, onError, sharedStream]);
 
   const cleanupMic = useCallback(() => {
     workletRef.current?.disconnect();
@@ -252,6 +257,8 @@ export function useRelayAsrInput({
             } else if (sessionBufferRef.current.trim()) {
               publish();
             }
+          } else if (msg.type === "error" && msg.recoverable === true) {
+            if (typeof msg.message === "string") onErrorRef.current?.(msg.message);
           } else if (msg.type === "disconnected") {
             if (listeningRef.current && activeConnector.canFailover) {
               void activeConnector.failover("mic test ASR disconnected");

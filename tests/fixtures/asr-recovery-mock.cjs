@@ -62,6 +62,14 @@ class FakeAsr extends EventEmitter {
 }
 
 Module._load = function(request, parent) {
+  // The relay now reaches Doubao TTS through the shared speech backend, which loads the same module.
+  if (request === '../../volcengine-tts' && parent?.filename.endsWith('/server/speech/tts/doubao.ts')) return {
+    ...originalLoad.apply(this, arguments),
+    synthesizeSpeech: async function*() {
+      yield { type: 'audio', audio: Buffer.alloc(480) };
+      yield { type: 'done' };
+    },
+  };
   if (parent?.filename.endsWith('/server/voice-relay.ts')) {
     if (request === './streaming-asr') return {
       resolveAsrProvider: () => 'qwen-audio',

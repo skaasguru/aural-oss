@@ -23,7 +23,7 @@ export function resolveAsrProvider(value?: string): AsrProvider {
   return provider;
 }
 
-interface StreamingAsrOptions {
+export interface StreamingAsrOptions {
   provider: AsrProvider;
   apiKey: string;
   appId?: string;
