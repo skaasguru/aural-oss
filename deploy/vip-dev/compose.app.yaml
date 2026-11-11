@@ -1,0 +1,77 @@
+services:
+  web:
+    image: ${AURAL_WEB_IMAGE:?set immutable amd64 web image}
+    restart: unless-stopped
+    mem_limit: 512m
+    logging: {driver: json-file, options: {max-size: "5m", max-file: "2"}}
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=384
+      # Supabase SSR derives its auth-cookie namespace from this hostname.
+      # Keep it identical to the browser URL unless storageKey is explicitly shared in code.
+      SUPABASE_URL: ${PUBLIC_SUPABASE_URL:?required}
+      SUPABASE_ANON_KEY: ${ANON_KEY:?required}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?required}
+      NEXT_PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL:?required}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY:?required}
+      NEXT_PUBLIC_APP_URL: ${PUBLIC_APP_URL:?required}
+      OPENAI_API_KEY: ${BIFROST_API_KEY:?required}
+      OPENAI_BASE_URL: http://vip-bifrost:8080/v1
+      LLM_CHAT_MODEL: groq/openai/gpt-oss-120b
+      LLM_GENERATOR_MODEL: groq/openai/gpt-oss-120b
+      LLM_REPORT_MODEL: groq/openai/gpt-oss-120b
+      VOICE_TTS_PROVIDER: openai-compatible
+      VOICE_TTS_BASE_URL: http://vip-bifrost:8080/v1
+      VOICE_TTS_API_KEY: ${BIFROST_API_KEY:?required}
+      VOICE_TTS_MODEL: groq/canopylabs/orpheus-v1-english
+      VOICE_TTS_VOICE: troy
+      VOICE_TTS_FORMAT: wav
+      VOICE_TTS_MAX_INPUT_CHARS: "200"
+      VOICE_TTS_MAX_SEGMENTS: "30"
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      private: {}
+      ingress:
+        aliases: [aural-web]
+  relay:
+    image: ${AURAL_RELAY_IMAGE:?set immutable amd64 relay image}
+    command: [npm, run, "start:voice"]
+    restart: unless-stopped
+    mem_limit: 256m
+    logging: {driver: json-file, options: {max-size: "5m", max-file: "2"}}
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=192
+      VOICE_RELAY_PORT: "8766"
+      VOICE_RELAY_HOST: 0.0.0.0
+      VOICE_ASR_PROVIDER: openai-compatible
+      VOICE_STT_BASE_URL: http://vip-bifrost:8080/v1
+      VOICE_STT_API_KEY: ${BIFROST_API_KEY:?required}
+      VOICE_STT_MODEL: groq/whisper-large-v3
+      VOICE_TTS_PROVIDER: openai-compatible
+      VOICE_TTS_BASE_URL: http://vip-bifrost:8080/v1
+      VOICE_TTS_API_KEY: ${BIFROST_API_KEY:?required}
+      VOICE_TTS_MODEL: groq/canopylabs/orpheus-v1-english
+      VOICE_TTS_VOICE: troy
+      VOICE_TTS_FORMAT: wav
+      VOICE_TTS_MAX_INPUT_CHARS: "200"
+      VOICE_TTS_MAX_SEGMENTS: "30"
+      RELAY_LLM_PROVIDER: openai
+      RELAY_LLM_API_KEY: ${BIFROST_API_KEY:?required}
+      RELAY_LLM_BASE_URL: http://vip-bifrost:8080/v1
+      RELAY_LLM_MODEL: groq/openai/gpt-oss-120b
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8766/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      private: {}
+      ingress:
+        aliases: [aural-relay]

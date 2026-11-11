@@ -1,0 +1,36 @@
+{
+  admin off
+  auto_https off
+}
+:8000 {
+  @preflight method OPTIONS
+  handle @preflight {
+    header Access-Control-Allow-Origin "https://aural.dev.skaaslabs.com"
+    header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    header Access-Control-Allow-Headers "authorization, apikey, content-type, x-client-info, x-upsert, range, x-supabase-api-version"
+    header Access-Control-Max-Age "600"
+    respond "" 204
+  }
+  header {
+    Access-Control-Allow-Origin "https://aural.dev.skaaslabs.com"
+    Access-Control-Expose-Headers "Content-Range, Range, X-Total-Count"
+    defer
+  }
+  handle /health {
+    respond "ok" 200
+  }
+  handle_path /auth/v1/* {
+    reverse_proxy auth:9999
+  }
+  handle_path /rest/v1/* {
+    reverse_proxy rest:3000
+  }
+  handle_path /storage/v1/* {
+    reverse_proxy storage:5000 {
+      header_up X-Forwarded-Prefix /storage/v1
+    }
+  }
+  handle {
+    respond "Not found" 404
+  }
+}

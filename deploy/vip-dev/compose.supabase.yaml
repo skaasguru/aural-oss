@@ -1,0 +1,140 @@
+name: aural
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "5m", max-file: "2"}
+services:
+  db:
+    image: supabase/postgres:17.6.1.136
+    restart: unless-stopped
+    mem_limit: 384m
+    shm_size: 128m
+    logging: *logging
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: postgres
+      PGDATABASE: postgres
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: "5432"
+      POSTGRES_PORT: "5432"
+      JWT_SECRET: ${JWT_SECRET:?required}
+      JWT_EXP: "3600"
+    command: [postgres, -c, config_file=/etc/postgresql/postgresql.conf, -c, shared_buffers=64MB, -c, max_connections=60]
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - db-config:/etc/postgresql-custom
+      - ./supabase-init/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro
+      - ./supabase-init/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:ro
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -h, localhost]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [private]
+  auth:
+    image: supabase/gotrue:v2.197.0
+    restart: unless-stopped
+    mem_limit: 160m
+    logging: *logging
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: ${PUBLIC_SUPABASE_URL:?required}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${PUBLIC_APP_URL:?required}
+      GOTRUE_URI_ALLOW_LIST: ${PUBLIC_APP_URL}/**
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?required}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_LOG_LEVEL: warn
+    healthcheck:
+      test: [CMD, wget, --spider, -q, "http://localhost:9999/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [private]
+  rest:
+    image: postgrest/postgrest:v14.18
+    restart: unless-stopped
+    mem_limit: 128m
+    logging: *logging
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?required}
+      PGRST_DB_MAX_ROWS: "1000"
+      PGRST_DB_POOL: "10"
+      PGRST_ADMIN_SERVER_PORT: "3001"
+      PGRST_SERVER_HOST: 0.0.0.0
+      PGRST_ADMIN_SERVER_HOST: 127.0.0.1
+    healthcheck:
+      test: [CMD, postgrest, --ready]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [private]
+  storage:
+    image: supabase/storage-api:v1.89.12
+    restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
+    depends_on:
+      db: {condition: service_healthy}
+      rest: {condition: service_started}
+    environment:
+      ANON_KEY: ${ANON_KEY:?required}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:?required}
+      POSTGREST_URL: http://rest:3000
+      AUTH_JWT_SECRET: ${JWT_SECRET:?required}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      STORAGE_PUBLIC_URL: ${PUBLIC_SUPABASE_URL:?required}
+      REQUEST_ALLOW_X_FORWARDED_PATH: "true"
+      FILE_SIZE_LIMIT: "52428800"
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: aural
+      REGION: local
+      GLOBAL_S3_BUCKET: aural
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+      NODE_OPTIONS: --max-old-space-size=160
+    volumes:
+      - ./data/storage:/var/lib/storage
+    healthcheck:
+      test: [CMD, wget, --spider, -q, "http://127.0.0.1:5000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [private]
+  gateway:
+    image: caddy:2
+    restart: unless-stopped
+    mem_limit: 96m
+    logging: *logging
+    depends_on: [auth, rest, storage]
+    volumes:
+      - ./Supabase.Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      private: {}
+      ingress:
+        aliases: [aural-supabase]
+volumes:
+  db-config:
+networks:
+  private:
+    name: aural_private
+  ingress:
+    external: true
+    name: dev-ingress
