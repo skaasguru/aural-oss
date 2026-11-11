@@ -1,5 +1,6 @@
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getProvider } from "@/lib/ai/registry";
+import { resolveChatModelOverride } from "@/lib/ai/model-config";
 import type { LLMMessage } from "@/lib/ai/types";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       messages: promptMessages,
       temperature: 0.7,
       maxTokens: 1024,
-      model: interview.llmModel ?? undefined,
+      model: interview.llmModel ?? resolveChatModelOverride(),
     });
 
     const isComplete = response.content.includes("[INTERVIEW_COMPLETE]");

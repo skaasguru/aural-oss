@@ -59,7 +59,11 @@ export function PrepVoiceInput({
   const relayStopRef = useRef<() => void>(() => undefined);
   const relayAvailableRef = useRef(false);
 
-  const relay = useRelayAsrInput({ language, onTranscript });
+  const relay = useRelayAsrInput({
+    language,
+    onTranscript,
+    onError: (description) => toast({ title: "Voice input", description, variant: "destructive" }),
+  });
   relayStartRef.current = relay.start;
   relayStopRef.current = relay.stop;
   relayAvailableRef.current = relay.isRelayAvailable;

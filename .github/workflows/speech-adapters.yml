@@ -1,0 +1,42 @@
+name: Speech adapter Docker gate
+
+on:
+  push:
+    branches: ["feat/provider-agnostic-speech"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tests, lint, types and production build in Docker
+        run: |
+          docker run --rm --init \
+            -v "$GITHUB_WORKSPACE:/app" -v aural-ci-node-modules:/app/node_modules \
+            -w /app \
+            -e CI=1 -e NEXT_TELEMETRY_DISABLED=1 \
+            -e NEXT_PUBLIC_SUPABASE_URL=https://build-placeholder.supabase.co \
+            -e NEXT_PUBLIC_SUPABASE_ANON_KEY=build-placeholder \
+            -e SUPABASE_URL=https://build-placeholder.supabase.co \
+            -e SUPABASE_ANON_KEY=build-placeholder \
+            -e SUPABASE_SERVICE_ROLE_KEY=build-placeholder \
+            -e GEMINI_API_KEY=build-placeholder \
+            node:22-bookworm bash -ec '
+              apt-get update -qq
+              apt-get install -y --no-install-recommends ffmpeg >/dev/null
+              npm ci --no-audit --no-fund
+              npm run lint
+              npx tsc --noEmit
+              npm run test:web
+              npm run build
+            '
+      - name: Build and boot both runtime images on amd64
+        run: |
+          docker build --target web -t aural-web:ci .
+          docker build --target relay -t aural-relay:ci .
+          bash scripts/verify-speech-images.sh aural-web:ci aural-relay:ci

@@ -368,7 +368,7 @@ Run Aural on your own servers for full control over data, configuration, and cus
 - **Node.js** 20.19+, 22.13+, or 24+ and npm (Node 22 is used in CI)
 - **Supabase** project (cloud or local via `supabase start`)
 - **LLM API key** — at least one of: OpenAI, Google Gemini, Kimi (Moonshot), or MiniMax
-- **Voice relay credentials** — Volcengine Doubao (primary) or Azure OpenAI (backup), if you want voice interviews or voice practice
+- **Speech provider configuration** — the primary relay can use legacy Seed/Qwen + Doubao, or independently selected OpenAI-compatible STT/TTS endpoints (including Groq, local Kokoro, or Bifrost). Azure OpenAI remains an optional separate backup. See [Speech Providers](docs/speech-providers.md).
 
 #### 1. Clone and Install
 
@@ -416,7 +416,7 @@ Edit `.env.local` with your credentials. At minimum you need:
 
 - Supabase URL and keys
 - One LLM provider API key (`OPENAI_API_KEY` recommended for the main app; `GEMINI_API_KEY` recommended for relay summarization and fallback generation)
-- Voice credentials only if you want voice interviews or voice practice (`DOUBAO_*` for the recommended relay, or `AZURE_OPENAI_*` for the backup relay)
+- Speech settings only if you want voice interviews or voice practice: use the legacy `DOUBAO_*` settings, or configure independent `VOICE_STT_*` / `VOICE_TTS_*` endpoints with the [provider guide](docs/speech-providers.md). `AZURE_OPENAI_*` is only for the optional backup relay.
 - Optional `JINA_READER_API_KEY` for higher-rate JD URL imports when a public page blocks direct server-side fetching
 
 **Local Supabase key mapping** — map the keys from `supabase status` output to your `.env.local`:
@@ -549,6 +549,24 @@ Report generation uses a higher-capability model when OpenAI or Kimi is configur
 ---
 
 ## Voice Relay
+
+### Provider-agnostic speech in this fork
+
+The primary relay now supports independent STT and TTS backends. Set
+`VOICE_ASR_PROVIDER=openai-compatible` for utterance-buffered transcription (such as Groq
+Whisper) and `VOICE_TTS_PROVIDER=openai-compatible` for synthesis (such as Kokoro or Groq
+Orpheus). Either can point directly at a compatible service or at a Bifrost gateway. The same
+backends serve interviews, microphone checks and practice. Doubao/Alibaba/Azure accounts are
+not required when these alternatives are configured; legacy defaults remain compatible.
+
+See [Speech Providers](docs/speech-providers.md) for exact variables, limitations and sample
+configurations, and the [isolated VIP dev deployment runbook](deploy/vip-dev/README.md) for
+Docker deployment and its current capacity gate. Provider changes are server-side configuration
+changes plus process restarts; file-based STT does not acquire native live partial captions.
+[Verification results and remaining limits](docs/speech-verification.md) distinguish local,
+provider and browser evidence.
+
+### Legacy relay overview
 
 Aural supports real-time AI voice interviews via WebSocket relay servers. Two relay implementations are provided.
 

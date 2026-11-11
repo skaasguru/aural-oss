@@ -3,6 +3,7 @@ import { OpenAIProvider } from "./providers/openai";
 import { GeminiProvider } from "./providers/gemini";
 import { KimiProvider } from "./providers/kimi";
 import { MinimaxProvider } from "./providers/minimax";
+import { resolveFallbackGeneratorModel, resolveGeneratorModel, resolveReportModel } from "./model-config";
 
 const providers = new Map<string, LLMProvider>();
 
@@ -39,32 +40,16 @@ export function listProviders(): LLMProvider[] {
 }
 
 /**
- * Model used for post-interview report generation.
+ * Model used for post-interview report generation (override: LLM_REPORT_MODEL).
  * Falls back through available providers.
  */
-export const REPORT_MODEL = process.env.OPENAI_API_KEY
-  ? "gpt-4o"
-  : process.env.GEMINI_API_KEY
-    ? "gemini-3.1-flash-lite"
-    : process.env.KIMI_API_KEY
-      ? "kimi-k2.6"
-      : "MiniMax-M2.1-lightning";
+export const REPORT_MODEL = resolveReportModel();
 
 /**
- * Model used for interview question generation and refinement.
+ * Model used for interview question generation and refinement (override: LLM_GENERATOR_MODEL).
  */
-export const GENERATOR_MODEL = process.env.OPENAI_API_KEY
-  ? "gpt-4o-mini"
-  : process.env.GEMINI_API_KEY
-    ? "gemini-3.1-flash-lite"
-    : process.env.KIMI_API_KEY
-      ? "moonshot-v1-8k"
-      : "MiniMax-M2.1-lightning";
+export const GENERATOR_MODEL = resolveGeneratorModel();
 
 export const PRIMARY_GENERATOR_MODEL = GENERATOR_MODEL;
 
-export const FALLBACK_GENERATOR_MODEL = process.env.MINIMAX_API_KEY
-  ? "MiniMax-M2.1-lightning"
-  : process.env.KIMI_API_KEY
-    ? "moonshot-v1-8k"
-    : GENERATOR_MODEL;
+export const FALLBACK_GENERATOR_MODEL = resolveFallbackGeneratorModel();

@@ -1,0 +1,55 @@
+# Isolated Aural stack with provider-agnostic speech. Copy to docker-compose.speech.yml and fill
+# the env files; nothing here touches other infrastructure.
+#
+#   docker compose -f docker-compose.speech.yml --env-file speech.env up -d --build
+#   docker compose -f docker-compose.speech.yml --profile kokoro up -d   # also run local Kokoro TTS
+#
+# `speech.env` holds server-side settings (see docs/examples/*.env). Supabase is external: set
+# SUPABASE_* in it. The kokoro image tag is a pin placeholder; verify it before use.
+# NEXT_PUBLIC_* are compiled into the web image: the values here and in speech.env must match
+# (the web container refuses to start otherwise). Provider keys only belong in speech.env.
+services:
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set a public Supabase URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set the public anon key}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_VOICE_RELAY_URL: ${NEXT_PUBLIC_VOICE_RELAY_URL:-ws://localhost:8766}
+    image: aural-web:local
+    env_file: speech.env
+    ports: ["3000:3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  relay:
+    build:
+      context: .
+      target: relay
+    image: aural-relay:local
+    depends_on: [web]
+    env_file: speech.env
+    environment:
+      VOICE_RELAY_HOST: 0.0.0.0
+      VOICE_RELAY_PORT: "8766"
+    ports: ["8766:8766"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8766/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  kokoro:
+    profiles: ["kokoro"]
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest   # pin an exact tag/digest for real deployments
+    ports: ["8880:8880"]
+    restart: unless-stopped

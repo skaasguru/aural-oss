@@ -24,5 +24,6 @@ export default defineConfig([
     "next-env.d.ts",
     "coverage/**",
     "vendor/braces/**",
+    "automation/**",
   ]),
 ]);

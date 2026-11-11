@@ -42,3 +42,12 @@ test-results/
 # Misc
 *.pem
 .vercel
+
+# Local supervisor/automation fixtures (not product code)
+automation/
+
+# Isolated deployment state (never commit credentials, media, DB files).
+/deploy/vip-dev/data/
+/deploy/vip-dev/logs/
+/deploy/vip-dev/backups/
+/deploy/vip-dev/.env*
