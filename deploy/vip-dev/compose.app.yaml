@@ -23,12 +23,13 @@ services:
       LLM_GENERATOR_MODEL: groq/openai/gpt-oss-120b
       LLM_REPORT_MODEL: groq/openai/gpt-oss-120b
       VOICE_TTS_PROVIDER: openai-compatible
-      VOICE_TTS_BASE_URL: http://vip-bifrost:8080/v1
-      VOICE_TTS_API_KEY: ${BIFROST_API_KEY:?required}
-      VOICE_TTS_MODEL: groq/canopylabs/orpheus-v1-english
-      VOICE_TTS_VOICE: troy
+      VOICE_TTS_BASE_URL: ${AURAL_TTS_BASE_URL:-http://vip-bifrost:8080/v1}
+      VOICE_TTS_API_KEY: ${AURAL_TTS_API_KEY:-${BIFROST_API_KEY}}
+      VOICE_TTS_MODEL: ${AURAL_TTS_MODEL:-groq/canopylabs/orpheus-v1-english}
+      VOICE_TTS_VOICE: ${AURAL_TTS_VOICE:-troy}
       VOICE_TTS_FORMAT: wav
-      VOICE_TTS_MAX_INPUT_CHARS: "200"
+      VOICE_TTS_MAX_INPUT_CHARS: ${AURAL_TTS_MAX_INPUT_CHARS:-200}
+      VOICE_TTS_TIMEOUT_MS: ${AURAL_TTS_TIMEOUT_MS:-30000}
       VOICE_TTS_MAX_SEGMENTS: "30"
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -55,12 +56,13 @@ services:
       VOICE_STT_API_KEY: ${BIFROST_API_KEY:?required}
       VOICE_STT_MODEL: groq/whisper-large-v3
       VOICE_TTS_PROVIDER: openai-compatible
-      VOICE_TTS_BASE_URL: http://vip-bifrost:8080/v1
-      VOICE_TTS_API_KEY: ${BIFROST_API_KEY:?required}
-      VOICE_TTS_MODEL: groq/canopylabs/orpheus-v1-english
-      VOICE_TTS_VOICE: troy
+      VOICE_TTS_BASE_URL: ${AURAL_TTS_BASE_URL:-http://vip-bifrost:8080/v1}
+      VOICE_TTS_API_KEY: ${AURAL_TTS_API_KEY:-${BIFROST_API_KEY}}
+      VOICE_TTS_MODEL: ${AURAL_TTS_MODEL:-groq/canopylabs/orpheus-v1-english}
+      VOICE_TTS_VOICE: ${AURAL_TTS_VOICE:-troy}
       VOICE_TTS_FORMAT: wav
-      VOICE_TTS_MAX_INPUT_CHARS: "200"
+      VOICE_TTS_MAX_INPUT_CHARS: ${AURAL_TTS_MAX_INPUT_CHARS:-200}
+      VOICE_TTS_TIMEOUT_MS: ${AURAL_TTS_TIMEOUT_MS:-30000}
       VOICE_TTS_MAX_SEGMENTS: "30"
       RELAY_LLM_PROVIDER: openai
       RELAY_LLM_API_KEY: ${BIFROST_API_KEY:?required}
@@ -76,3 +78,42 @@ services:
       private: {}
       ingress:
         aliases: [aural-relay]
+  kokoro:
+    profiles: [kokoro]
+    # v0.10.0 manifest pinned after amd64 pull/inspection.
+    image: ghcr.io/remsky/kokoro-fastapi-cpu@sha256:f54c5960c2b9387f6349080a9944f8bc7e8cdb98a4ef9238cb0b0f9ff9795f44
+    restart: unless-stopped
+    mem_limit: 2048m
+    cpus: 1.5
+    pids_limit: 128
+    logging: {driver: json-file, options: {max-size: "5m", max-file: "2"}}
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8880"
+      DEVICE_TYPE: cpu
+      USE_GPU: "false"
+      DOWNLOAD_MODEL: "false"
+      HF_HUB_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      WEB_CONCURRENCY: "1"
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      API_LOG_LEVEL: WARNING
+      DEFAULT_VOICE: af_heart
+      ENABLE_WEB_PLAYER: "false"
+      ENABLE_DEBUG_ENDPOINTS: "false"
+      ENABLE_INNO_TUNER: "false"
+      ALLOW_DEV_UNLOAD: "false"
+      MAX_INPUT_LENGTH: "2000"
+      MAX_REQUEST_BODY_MB: "1"
+      API_KEYS: '["${AURAL_TTS_API_KEY:-${BIFROST_API_KEY:?required}}"]'
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8880/health', timeout=5)"]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 90s
+    networks:
+      private:
+        aliases: [aural-kokoro]

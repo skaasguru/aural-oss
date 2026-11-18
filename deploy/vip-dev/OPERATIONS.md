@@ -10,7 +10,10 @@ Do not use these commands on the production SKaaS hosts.
 - `/srv/dev/apps/aural/access.json`, mode 0600, contains the generated dev access credentials.
   Do not print it into terminal logs or commit it. Public signup is disabled after installation.
 - `.env`, database files, storage objects, access credentials and backups remain outside Git.
-- Groq provider credentials remain in existing Bifrost; Aural receives its runtime gateway key.
+- Groq provider credentials remain in existing Bifrost for STT/text generation. Kokoro uses a
+  separate generated private-service key in protected `.env`, not a cloud-provider key.
+- VIP API/agent are intentionally paused with owner approval to free model memory; VIP DB,
+  Bifrost and shared ingress remain running. Check capacity before resuming the VIP app.
 - No email delivery is configured; this is a development-only installation.
 - The shared Caddy process is reloaded, not restarted. Existing VIP and Bifrost routes are preserved.
 
@@ -53,10 +56,11 @@ active. From `/srv/dev/apps/aural`:
 ```
 
 The script refuses a dirty worktree or mismatched revision, saves the old source pointer,
-image settings and app Compose configuration in a protected timestamped backup, builds
-new images, recreates ONLY Aural web/relay, and checks authenticated public Aural health
-and unchanged VIP health. Failure restores old source/config/images and recreates only
-web/relay. Prior images are retained. It DOES NOT upgrade Supabase or apply new database
+image settings and app Compose configuration in a protected timestamped backup. It pauses a
+running Kokoro container during the memory-intensive image build, then resumes it and recreates
+Aural web/relay. It checks public Aural/Bifrost readiness and preserves VIP's prior running/stopped
+state (VIP is currently intentionally paused). Failure restores old source/config/images and
+resumes a previously running Kokoro. Prior images are retained. It DOES NOT upgrade Supabase or apply new database
 migrations; review and approve those separately. The idle flag is an operator assertion,
 not an automated session-occupancy measurement. The full update/rollback procedure must
 be rehearsed before relying on it for a production upgrade.
@@ -65,9 +69,11 @@ be rehearsed before relying on it for a production upgrade.
 
 `verify-browser.mjs` requires Playwright/Chromium 1.58.2 and protected credentials mounted
 at `/run/access.json`; mount it at `/qa/verify-browser.mjs` in the matching Playwright image.
-It checks login, dashboard, WebSocket handshake and actual AI question generation. Its JSON
-reports `ttsStatus` separately: exit zero with 502 records the known terms-blocked TTS path,
-NOT successful speech. AI checks make real provider requests. Never log cookies or passwords.
+It checks login, dashboard, actual AI generation, real relay PCM playback/acknowledgement and
+HTTP TTS. It REQUIRES HTTP 200 synthesis plus valid audible audio decoded by Chromium;
+502 no longer counts as acceptance. The controlled headless browser permits autoplay.
+It does not simulate a physical microphone. AI checks make real provider requests.
+Never log cookies or passwords.
 
 ## Backups / rollback
 
@@ -85,10 +91,10 @@ this live volume; a smaller replacement volume would require a separate migratio
 
 ## Voice acceptance
 
-STT is `groq/whisper-large-v3`; TTS is `groq/canopylabs/orpheus-v1-english`, voice `troy`;
-text generation is `groq/openai/gpt-oss-120b`, all through existing Bifrost.
-Groq Whisper is utterance-buffered, not native live-partial transcription.
-An HTTP 200 readiness response does not establish successful speech synthesis or a full
-browser microphone session. Verify actual providers, WebSocket ingress, microphone capture,
-interruptions, playback and recording independently. Groq model terms must be accepted by
-the account owner; do not accept them on the user's behalf.
+STT remains `groq/whisper-large-v3`; text generation remains `groq/openai/gpt-oss-120b`,
+through Bifrost. TTS is now local Kokoro (`af_heart`) on Aural's private network, after the
+configured Gemini key failed authentication. See [Kokoro deployment](../../docs/kokoro-deployment.md)
+for the pinned image, limits, memory incident, successful browser playback and measured latency.
+Groq Whisper is utterance-buffered, not native live-partial transcription. Real-device microphone,
+interruptions/reconnects under load and full human interview/recording acceptance remain separate
+checks. The current CPU TTS is functional but not low-latency conversational inference.

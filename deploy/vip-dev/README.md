@@ -13,16 +13,23 @@ immutable amd64 web/relay image tags. Runtime state and protected credentials li
 `/srv/dev/apps/aural`; `source` points to the per-commit release. See
 [OPERATIONS.md](OPERATIONS.md) for access, inspection, update and rollback boundaries.
 
-Verified live: browser login/dashboard, secure voice WebSocket handshake, real interview
+Initial stand-up verified: browser login/dashboard, secure voice WebSocket handshake, real interview
 question generation through Bifrost, Groq Whisper transcription, all five SQL migrations,
 disposable Auth/RLS/Storage flow, runtime readiness/non-root/ffmpeg smoke, and all four
 real-ffmpeg tests on the actual amd64 relay image. Existing VIP/Bifrost services were not
 stopped or restarted; VIP public health remained HTTP 200.
 
-**Voice synthesis is not yet operational:** Groq Orpheus still returns `model_terms_required`,
-and the deployed Aural HTTP TTS route returns 502. No successful spoken/microphone interview
-is claimed. Public signup is disabled; generated dev credentials are in mode-0600
-`access.json`, never in Git. Keep at least **8 GiB free** and do not prune unrelated assets.
+**Current speech output is self-hosted Kokoro**, model `kokoro`, English voice `af_heart`.
+Gemini's configured key returned HTTP 401, so the owner's fallback selection was applied.
+Both web TTS and actual voice-relay PCM playback passed a strict Chromium test. See the
+[Kokoro deployment record](../../docs/kokoro-deployment.md) for evidence and latency limits.
+
+To fit the model's peak memory on this 4 GiB VM, **VIP API and agent are intentionally paused**
+under the owner's approval. Their database, Bifrost and ingress remain up. Initial installation
+kept VIP healthy; do not confuse that historical check with the current intentional pause.
+
+Public signup remains disabled; generated dev credentials are in mode-0600 `access.json`,
+never in Git. Keep at least **8 GiB free** and do not prune unrelated assets.
 
 ## What is included
 
@@ -109,6 +116,5 @@ private recording object upload and authenticated download, and disposal of the 
 Idle measured memory across the five local services was approximately 240 MiB (not a load benchmark).
 Compose merging/configuration and Caddy syntax were validated. On VIP dev, Groq Whisper transcription
 and a text completion succeeded through existing Bifrost; Groq Orpheus returned `model_terms_required`.
-The complete Aural stack is now deployed; browser login/dashboard, real AI generation and
-WebSocket ingress passed. Full browser microphone/voice acceptance remains unverified because
-Groq Orpheus synthesis is still terms-gated.
+Kokoro now passes successful HTTP synthesis and real relay PCM playback in Chromium. Physical
+microphone/iPhone permissions and a complete human interview/recording session remain unverified.

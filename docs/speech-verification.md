@@ -50,7 +50,20 @@ ARM64 images were not deployed.
 - Adapter transport tests use real loopback HTTP/WebSocket servers at provider boundaries.
   A live browser microphone interview through the new deployed stack has NOT been verified.
 
-## Deployment state
+## Current voice acceptance
+
+Kokoro is now active after the configured Gemini key returned HTTP 401. A strict public
+Chromium test passed actual voice-relay initialization, audible PCM playback and playback
+acknowledgement, successful HTTP WAV synthesis/decoding, login/dashboard and live AI generation.
+The relay delivered 387720 bytes in nine played chunks; first audio took 22.857 seconds.
+Full physical-microphone/human-interview acceptance remains unverified. See
+[Kokoro deployment](kokoro-deployment.md) for the memory-cap failure, correction and CPU latency.
+
+VIP API/agent are now intentionally paused with owner approval after verifying zero LiveKit
+participants. Bifrost, databases and shared ingress remain running. The VIP HTTP 200 and
+Orpheus 502 figures below describe the INITIAL deployment, not current service selection.
+
+## Initial deployment state
 
 Deployed on 2026-11-18 at **https://aural.dev.skaaslabs.com**, behind Basic authentication.
 The owner authorized a 64 GiB root EBS volume; partition and ext4 growth succeeded online,
