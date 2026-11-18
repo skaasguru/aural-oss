@@ -27,6 +27,11 @@ COPY vendor ./vendor
 RUN npm ci --no-audit --no-fund
 
 FROM deps AS build
+# Deployment builders can select webpack and a bounded JS heap on small shared VMs.
+ARG AURAL_NEXT_BUILD_FLAGS=
+ARG AURAL_BUILD_CPUS=1
+ARG NODE_OPTIONS=--max-old-space-size=1024
+ENV AURAL_BUILD_CPUS=$AURAL_BUILD_CPUS NODE_OPTIONS=$NODE_OPTIONS
 ARG NEXT_PUBLIC_SUPABASE_URL=http://placeholder.invalid
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-public-anon-key
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -45,7 +50,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
 COPY . .
 # Fails the build if the relay imports a package that the relay image would not contain.
 RUN node scripts/relay-runtime.mjs check
-RUN npm run build
+RUN npm run build -- $AURAL_NEXT_BUILD_FLAGS
 # Record exactly the public values compiled into the bundle (no secrets) for the runtime guard.
 RUN node -e 'const fs=require("fs");const o={};for(const k of Object.keys(process.env).filter(k=>k.startsWith("NEXT_PUBLIC_")).sort())o[k]=process.env[k];fs.writeFileSync(".next/standalone/public-env.json",JSON.stringify(o))' \
     && cp docker/web-entrypoint.mjs .next/standalone/web-entrypoint.mjs
