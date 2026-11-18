@@ -2,20 +2,27 @@
 
 ## Status / safety boundary
 
-Deployment is **paused for disk capacity**. The existing development host has a 15 GB root
-filesystem. An initial isolated Supabase startup succeeded, but the downloaded amd64 layers
-and database left only 571 MB free before the app image was added. The supervisor stopped and
-removed only the new `aural-*` containers and their four Supabase image references; free space
-returned to about 3.6 GiB. Existing VIP API, agent, database, Bifrost and shared ingress were
-not restarted or reconfigured; public VIP health remained HTTP 200.
+Deployment is live at **https://aural.dev.skaaslabs.com**, protected with HTTP Basic
+authentication followed by the application's login. On 2026-11-18 the owner authorized
+expanding the VIP dev root EBS volume from 16 to **64 GiB**. The root partition and ext4
+filesystem were grown online without reboot; after the complete stack was installed,
+approximately **41 GiB remained free**.
 
-There are prepared configuration files and a protected `.env` under `/srv/dev/apps/aural`,
-plus an unused initialized Aural database directory and named config volume. There is no
-public Aural route and no running Aural service. No VIP data was modified. Do not treat those
-prepared files as a running installation.
+The deployed application source is `d8a75bcb143b4837a1128c4c80d57148dbe52f5e`, with
+immutable amd64 web/relay image tags. Runtime state and protected credentials live under
+`/srv/dev/apps/aural`; `source` points to the per-commit release. See
+[OPERATIONS.md](OPERATIONS.md) for access, inspection, update and rollback boundaries.
 
-Before retrying, obtain at least **8 GiB free** (a root volume of at least 40 GB is recommended),
-or use external Supabase. Do not automatically prune VIP images, backups, or volumes.
+Verified live: browser login/dashboard, secure voice WebSocket handshake, real interview
+question generation through Bifrost, Groq Whisper transcription, all five SQL migrations,
+disposable Auth/RLS/Storage flow, runtime readiness/non-root/ffmpeg smoke, and all four
+real-ffmpeg tests on the actual amd64 relay image. Existing VIP/Bifrost services were not
+stopped or restarted; VIP public health remained HTTP 200.
+
+**Voice synthesis is not yet operational:** Groq Orpheus still returns `model_terms_required`,
+and the deployed Aural HTTP TTS route returns 502. No successful spoken/microphone interview
+is claimed. Public signup is disabled; generated dev credentials are in mode-0600
+`access.json`, never in Git. Keep at least **8 GiB free** and do not prune unrelated assets.
 
 ## What is included
 
@@ -37,7 +44,12 @@ Persistence: DB data in `data/postgres`, objects in `data/storage`, and a determ
 must NOT replace that config volume: it hides required image-provided configuration files.
 No database or gateway host ports are published.
 
-## Deployment after capacity is resolved
+## Manual first-install reference
+
+The deployed VM also has `build.py` and the first-install `activate.py`; see
+[OPERATIONS.md](OPERATIONS.md). The steps below describe their boundaries. For the disposable
+signup smoke only, set `AURAL_DISABLE_SIGNUP=false` while the gateway is still private, then
+restore `true` and recreate Auth **before** installing public ingress.
 
 1. Run `python3 preflight.py` on the host. Do not continue on nonzero exit.
 2. Clone/fetch `skaasguru/aural-oss` into an app-specific checkout, resolve the approved feature
@@ -97,4 +109,6 @@ private recording object upload and authenticated download, and disposal of the 
 Idle measured memory across the five local services was approximately 240 MiB (not a load benchmark).
 Compose merging/configuration and Caddy syntax were validated. On VIP dev, Groq Whisper transcription
 and a text completion succeeded through existing Bifrost; Groq Orpheus returned `model_terms_required`.
-Full Aural deployment and browser microphone acceptance remain unverified.
+The complete Aural stack is now deployed; browser login/dashboard, real AI generation and
+WebSocket ingress passed. Full browser microphone/voice acceptance remains unverified because
+Groq Orpheus synthesis is still terms-gated.

@@ -30,8 +30,12 @@ HTTP coaching TTS route decodes compressed audio too, ffmpeg was added to that r
 the relay. `scripts/verify-speech-images.sh` is the committed readiness/non-root/ffmpeg regression
 harness. Both rebuilt ARM64 images passed that harness: actual `/api/health` and relay `/health`
 responses, ffmpeg availability and non-root runtime were checked, and the disposable containers
-were removed. AMD64 image verification is delegated to the committed GitHub Actions Docker gate;
-ARM64 images are not suitable for the VIP dev host.
+were removed. Both targets were subsequently built and booted on the actual AMD64 VIP dev
+host at `d8a75bcb143b4837a1128c4c80d57148dbe52f5e`, and the same runtime harness passed.
+The four real-ffmpeg tests also passed directly in that AMD64 relay image with no skips.
+The first memory-capped Turbopack build exhausted its 1800 MiB cgroup; the successful build
+used webpack, one worker and a 1024 MiB JavaScript heap, without stopping existing VIP services.
+ARM64 images were not deployed.
 
 ## Real infrastructure / provider boundary
 
@@ -48,12 +52,22 @@ ARM64 images are not suitable for the VIP dev host.
 
 ## Deployment state
 
-NOT deployed. A minimal isolated remote Supabase startup exhausted safe headroom on the shared
-15 GB root disk before the Aural app image was added. All newly introduced containers/images were
-rolled back; VIP services were not restarted and public VIP health remained HTTP 200.
-The committed [deployment runbook](../deploy/vip-dev/README.md) requires at least 8 GiB FREE before
-another attempt (40 GB root recommended), or external Supabase. No resource purchase/resize was
-authorized. No main/develop merge or PR was requested.
+Deployed on 2026-11-18 at **https://aural.dev.skaaslabs.com**, behind Basic authentication.
+The owner authorized a 64 GiB root EBS volume; partition and ext4 growth succeeded online,
+with approximately 41 GiB free after installation. No VIP application/container restart
+was required. Existing VIP public health remained HTTP 200.
+
+The actual remote Supabase stack passed all five migrations and disposable Auth/profile-RLS/
+private Storage/cleanup checks. Public signup was then disabled. A real Chromium session
+passed login, dashboard rendering (zero page errors), secure voice WebSocket handshake and
+AI question generation through the deployed Aural API/Bifrost path (three actual generated
+questions). The deployed HTTP TTS route returned 502, consistent with Groq's terms gate.
+Readiness and a WebSocket handshake do NOT prove an audio conversation.
+
+The versioned [deployment runbook](../deploy/vip-dev/README.md) and
+[operations guide](../deploy/vip-dev/OPERATIONS.md) document protected access, immutable image
+and source references, update/rollback boundaries and the remaining voice limitation.
+No main/develop merge or PR was requested.
 
 ## Remaining behavior limits
 
