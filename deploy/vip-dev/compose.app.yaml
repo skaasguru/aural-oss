@@ -15,6 +15,8 @@ services:
       NEXT_PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL:?required}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY:?required}
       NEXT_PUBLIC_APP_URL: ${PUBLIC_APP_URL:?required}
+      NEXT_PUBLIC_VOICE_RELAY_URL: wss://aural.dev.skaaslabs.com/ws/voice
+      NEXT_PUBLIC_VOICE_RELAY_PRIMARY: voice
       OPENAI_API_KEY: ${BIFROST_API_KEY:?required}
       OPENAI_BASE_URL: http://vip-bifrost:8080/v1
       LLM_CHAT_MODEL: groq/openai/gpt-oss-120b
@@ -40,7 +42,6 @@ services:
         aliases: [aural-web]
   relay:
     image: ${AURAL_RELAY_IMAGE:?set immutable amd64 relay image}
-    command: [npm, run, "start:voice"]
     restart: unless-stopped
     mem_limit: 256m
     logging: {driver: json-file, options: {max-size: "5m", max-file: "2"}}

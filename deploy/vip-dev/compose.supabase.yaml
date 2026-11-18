@@ -46,7 +46,7 @@ services:
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
       GOTRUE_SITE_URL: ${PUBLIC_APP_URL:?required}
       GOTRUE_URI_ALLOW_LIST: ${PUBLIC_APP_URL}/**
-      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_DISABLE_SIGNUP: ${AURAL_DISABLE_SIGNUP:-true}
       GOTRUE_JWT_ADMIN_ROLES: service_role
       GOTRUE_JWT_AUD: authenticated
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
