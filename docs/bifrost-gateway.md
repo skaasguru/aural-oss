@@ -6,8 +6,8 @@ Bifrost. The gateway is the single place to observe requests, latency and cost.
 
 | Purpose | Aural setting | Bifrost route | Upstream |
 |---|---|---|---|
-| Interactive replies, question generation, chat | `anthropic/claude-haiku-4-5` | provider `anthropic`, `/v1/chat/completions` | Claude API |
-| Reports and feedback | `anthropic/claude-sonnet-4-5` | provider `anthropic` | Claude API |
+| Interactive replies, question generation, chat | `anthropic/claude-haiku-5-5` | provider `anthropic`, `/v1/chat/completions` | Claude API |
+| Reports and feedback | `anthropic/claude-sonnet-5-5` | provider `anthropic` | Claude API |
 | Text-to-speech | `assemblyai/assemblyai-tts-en`, voice `aai-kyla`, `pcm` | custom provider `assemblyai` (OpenAI base), `/v1/audio/speech` | `tts.us.assemblyai.com/v1/openai/audio/speech` |
 | Speech-to-text | `VOICE_ASR_PROVIDER=assemblyai`, `universal-3-6-pro` | relay `assemblyai-stt`, `/relay/assemblyai-stt/v1/transcribe` | `sync.assemblyai.com/v1/transcribe` |
 
@@ -43,13 +43,15 @@ references only (`env.NAME`); values live in `/srv/dev/apps/vip/.env` (mode 0600
 - `AURAL_BIFROST_VK`, `VIP_BIFROST_VK`: one virtual key per application. `aural-dev` may use
   `anthropic`, `assemblyai`, `groq` and the relay; `vip-dev` may use `openrouter`, `groq`, `gemini`.
 - `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`: dashboard and management API login, also
-  written to `/srv/dev/secrets/bifrost-admin.txt`.
+  written to `/srv/dev/secrets/bifrost-admin.txt`. This native login is the only gate on
+  `https://bifrost.dev.skaaslabs.com`; the earlier Caddy basic-auth prompt was removed.
 
 Bifrost is pinned to `maximhq/bifrost:v2.6.0`. From 2.6 the management API is locked until an admin
 exists, and with `enforce_auth_on_inference` every inference or relay call needs a virtual key, so
-the image, seed, credentials and callers were changed together by `upgrade-bifrost.py`. It keeps a
-rollback: `/srv/dev/apps/vip/backups/bifrost-pre-v2.6.0-*` (SQLite backups, compose, seed, env) and
-the image tag `maximhq/bifrost:rollback-pre-v2.6.0`.
+the image, seed, credentials and callers were changed together by `upgrade-bifrost.py`. The script
+keeps a rollback (`/srv/dev/apps/vip/backups/bifrost-pre-v2.6.0-*` and the image tag
+`maximhq/bifrost:rollback-pre-v2.6.0`); on VIP dev both were deleted at the owner's request once
+v2.6.0 was accepted, so there is no path back to 2.2.3 there.
 
 The seed runs in Bifrost's default split mode: dashboard edits persist until the matching entry in
 the seed file changes, at which point the file wins for that entry on the next start.
@@ -61,7 +63,9 @@ round trip passes with Aural's virtual key: Claude chat on both models, Assembly
 synthesis, then transcription of that synthesized audio through the relay with at least 80% of the
 spoken words recovered. It then removes the transitional overrides from `.env`, recreates web and
 relay on the compose defaults and stops the former self-hosted Kokoro container.
-`--probe-only` runs the checks without switching.
+`--probe-only` runs the checks without switching. `--without-probes` switches unconditionally.
 
-Until the provider keys exist, `.env` pins the previous working selection through the same
-gateway and virtual key: Groq Whisper, Groq text generation, and the private Kokoro container.
+VIP dev was switched with `--without-probes` while Bifrost still held placeholder provider keys, at
+the owner's request: text generation and voice fail with an upstream authentication error until
+the real Anthropic and AssemblyAI keys are entered in Bifrost (provider `anthropic` key, provider
+`assemblyai` key, relay `assemblyai-stt` credential). Run `--probe-only` afterwards to verify.

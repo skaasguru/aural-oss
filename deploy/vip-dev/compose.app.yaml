@@ -22,9 +22,9 @@ services:
       OPENAI_API_KEY: ${BIFROST_API_KEY:?required}
       OPENAI_BASE_URL: http://vip-bifrost:8080/v1
       # Claude through Bifrost's `anthropic` provider: Haiku for interactive turns, Sonnet for reports.
-      LLM_CHAT_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-4-5}
-      LLM_GENERATOR_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-4-5}
-      LLM_REPORT_MODEL: ${AURAL_LLM_REPORT_MODEL:-anthropic/claude-sonnet-4-5}
+      LLM_CHAT_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-5-5}
+      LLM_GENERATOR_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-5-5}
+      LLM_REPORT_MODEL: ${AURAL_LLM_REPORT_MODEL:-anthropic/claude-sonnet-5-5}
       # AssemblyAI TTS through Bifrost's `assemblyai` provider (OpenAI speech API, raw 24 kHz PCM).
       VOICE_TTS_PROVIDER: openai-compatible
       VOICE_TTS_BASE_URL: ${AURAL_TTS_BASE_URL:-http://vip-bifrost:8080/v1}
@@ -74,7 +74,7 @@ services:
       RELAY_LLM_PROVIDER: openai
       RELAY_LLM_API_KEY: ${BIFROST_API_KEY:?required}
       RELAY_LLM_BASE_URL: http://vip-bifrost:8080/v1
-      RELAY_LLM_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-4-5}
+      RELAY_LLM_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-5-5}
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:8766/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s

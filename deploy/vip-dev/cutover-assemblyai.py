@@ -63,11 +63,10 @@ def main():
         ip, live = bifrost()
         print("bifrost recreated with updated provider keys")
     key = live["AURAL_BIFROST_VK"]
-    compose = open(f"{AURAL}/compose.app.yaml").read()
-    def default(name):
-        match = re.search(r"\$\{" + name + r":-([^}]+)\}", compose)
-        if not match: raise SystemExit(f"compose.app.yaml has no default for {name}")
-        return match.group(1)
+    if "--without-probes" in sys.argv:
+        print("WARNING: switching without verifying the providers (--without-probes)")
+        return switch(*[compose_default(n) for n in ("AURAL_LLM_FAST_MODEL", "AURAL_LLM_REPORT_MODEL", "AURAL_TTS_MODEL", "AURAL_TTS_VOICE", "AURAL_STT_MODEL")])
+    default = compose_default
     fast, report = default("AURAL_LLM_FAST_MODEL"), default("AURAL_LLM_REPORT_MODEL")
     tts_model, voice, stt_model = default("AURAL_TTS_MODEL"), default("AURAL_TTS_VOICE"), default("AURAL_STT_MODEL")
 
@@ -95,7 +94,16 @@ def main():
     if overlap < 0.8: fail("speech round trip", 200, f"transcript does not match the synthesized sentence: {heard!r}")
     if "--probe-only" in sys.argv:
         print("probe only: nothing changed"); return
+    switch(fast, report, tts_model, voice, stt_model)
 
+
+def compose_default(name):
+    match = re.search(r"\$\{" + name + r":-([^}]+)\}", open(f"{AURAL}/compose.app.yaml").read())
+    if not match: raise SystemExit(f"compose.app.yaml has no default for {name}")
+    return match.group(1)
+
+
+def switch(fast, report, tts_model, voice, stt_model):
     env_path = f"{AURAL}/.env"
     lines = [l for l in open(env_path).read().splitlines() if l.split("=", 1)[0] not in TRANSITIONAL]
     backup = f"{AURAL}/backups/cutover-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.env"
@@ -110,15 +118,15 @@ def main():
         os.replace(backup, env_path)
         sh(*COMPOSE, "up", "-d", "--no-deps", "--wait", "--wait-timeout", "180", "web", "relay", cwd=AURAL, check=False)
         raise SystemExit("NOT SWITCHED: web/relay did not become healthy; previous configuration restored")
-    sh("docker", "stop", "aural-kokoro-1", check=False)
+    sh("docker", "rm", "-f", "aural-kokoro-1", check=False)
     state_path = f"{AURAL}/deployment.json"
     state = json.load(open(state_path))
     state["llm"] = {"gateway": "bifrost", "interactive": fast, "report": report}
     state["stt"] = {"gateway": "bifrost relay assemblyai-stt", "model": stt_model}
     state["tts"] = {"gateway": "bifrost provider assemblyai", "model": tts_model, "voice": voice}
     json.dump(state, open(state_path, "w"), indent=2)
-    print("SWITCHED: Aural web+relay now use Claude + AssemblyAI through Bifrost; Kokoro stopped (container and image kept for rollback)")
-    print("rollback: restore", backup, "to .env, `docker start aural-kokoro-1`, recreate web and relay")
+    print("SWITCHED: Aural web+relay now use Claude + AssemblyAI through Bifrost; Kokoro container removed")
+    print("previous .env:", backup)
 
 
 if __name__ == "__main__":
