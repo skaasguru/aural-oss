@@ -6,6 +6,11 @@
  * utterance is uploaded once as a WAV file, and the provider answers with one final per utterance.
  * No partial transcripts exist, which `capabilities.partials === false` states.
  *
+ * `dialect: "assemblyai"` keeps the same buffering, ordering, retry and circuit-breaker behavior
+ * but speaks AssemblyAI's Sync STT wire format (`POST {base}/v1/transcribe`: multipart `audio` +
+ * JSON `config`, model in the `X-AAI-Model` header). The base URL is either AssemblyAI itself or a
+ * gateway route that forwards to it unchanged, such as a Bifrost relay (`/relay/<name>`).
+ *
  * Bounds: audio memory is limited by `maxUtteranceMs` x (`maxQueue` + 1); requests are sequential
  * (so results are ordered and never duplicated); retries are capped by `maxRetries`.
  */
@@ -18,6 +23,8 @@ import { UtteranceSegmenter } from "./segmenter";
 import type { SttCapabilities, SttEvent, SttOpenParams, SttProvider, SttSession } from "./types";
 
 export interface OpenAiCompatibleSttConfig {
+  /** Wire format. Defaults to the OpenAI transcription API. */
+  dialect?: "openai" | "assemblyai";
   /** Base URL including any `/v1`, e.g. `https://api.groq.com/openai/v1`. */
   baseUrl: string;
   apiKey?: string;
@@ -81,7 +88,9 @@ class TranscriptLimitError extends Error {}
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export function createOpenAiCompatibleSttProvider(config: OpenAiCompatibleSttConfig): SttProvider {
-  const url = joinApiUrl(config.baseUrl, "audio/transcriptions");
+  const assemblyai = config.dialect === "assemblyai";
+  const capabilities: SttCapabilities = assemblyai ? { ...OPENAI_COMPATIBLE_STT_CAPABILITIES, id: "assemblyai" } : OPENAI_COMPATIBLE_STT_CAPABILITIES;
+  const url = joinApiUrl(config.baseUrl, assemblyai ? "v1/transcribe" : "audio/transcriptions");
   const maxResponseBytes = config.maxResponseBytes ?? DEFAULT_STT_MAX_RESPONSE_BYTES;
   const maxSegments = config.maxTranscriptSegments ?? DEFAULT_STT_MAX_TRANSCRIPT_SEGMENTS;
   const maxChars = config.maxTranscriptChars ?? DEFAULT_STT_MAX_TRANSCRIPT_CHARS;
@@ -91,22 +100,34 @@ export function createOpenAiCompatibleSttProvider(config: OpenAiCompatibleSttCon
 
   async function transcribeOnce(wav: Buffer, language: string | undefined, signal: AbortSignal): Promise<string> {
     const form = new FormData();
-    form.append("file", new Blob([new Uint8Array(wav)], { type: "audio/wav" }), "audio.wav");
-    form.append("model", config.model);
-    if (language) form.append("language", language);
-    if (config.prompt) form.append("prompt", config.prompt);
-    form.append("response_format", "json");
-    form.append("temperature", "0");
+    const headers: Record<string, string> = config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {};
+    if (assemblyai) {
+      // Sync STT: the model travels in a header and options in one JSON part. Unknown options are
+      // rejected upstream, so only documented ones are sent.
+      headers["X-AAI-Model"] = config.model;
+      form.append("audio", new Blob([new Uint8Array(wav)], { type: "audio/wav" }), "audio.wav");
+      const options: Record<string, unknown> = {};
+      if (language) options.language_codes = language;
+      if (config.prompt) options.prompt = config.prompt;
+      form.append("config", new Blob([JSON.stringify(options)], { type: "application/json" }));
+    } else {
+      form.append("file", new Blob([new Uint8Array(wav)], { type: "audio/wav" }), "audio.wav");
+      form.append("model", config.model);
+      if (language) form.append("language", language);
+      if (config.prompt) form.append("prompt", config.prompt);
+      form.append("response_format", "json");
+      form.append("temperature", "0");
+    }
     const timeout = AbortSignal.timeout(config.timeoutMs);
     try {
       const res = await fetch(url, {
         method: "POST", body: form, redirect: "error", signal: AbortSignal.any([signal, timeout]),
-        headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+        headers,
       });
       if (!res.ok) {
         const body = (await readBodyLimited(res, ERROR_BODY_SNIPPET_BYTES, { truncate: true })).toString("utf8");
         let message = body;
-        try { const json = JSON.parse(body); message = json?.error?.message ?? json?.message ?? body; } catch { /* plain text */ }
+        try { const json = JSON.parse(body); message = json?.error?.message ?? json?.detail ?? json?.message ?? body; } catch { /* plain text */ }
         throw new SttHttpError(`STT provider returned HTTP ${res.status}${message ? `: ${sanitize(String(message), config.apiKey)}` : ""}`, res.status, res.status === 429 || res.status >= 500);
       }
       let body: string;
@@ -131,7 +152,7 @@ export function createOpenAiCompatibleSttProvider(config: OpenAiCompatibleSttCon
   }
 
   class BufferedSttSession implements SttSession {
-    readonly capabilities = OPENAI_COMPATIBLE_STT_CAPABILITIES;
+    readonly capabilities = capabilities;
     private listener: ((event: SttEvent) => void) | null = null;
     private readonly segmenter = new UtteranceSegmenter({
       threshold: config.vadThreshold, silenceMs: config.silenceMs, minSpeechMs: config.minSpeechMs,
@@ -279,7 +300,7 @@ export function createOpenAiCompatibleSttProvider(config: OpenAiCompatibleSttCon
   }
 
   return {
-    capabilities: OPENAI_COMPATIBLE_STT_CAPABILITIES,
+    capabilities,
     async open(params: SttOpenParams): Promise<SttSession> {
       if (Date.now() < openUntil) {
         throw new Error("STT provider unavailable after repeated failures; retrying shortly");
@@ -287,7 +308,7 @@ export function createOpenAiCompatibleSttProvider(config: OpenAiCompatibleSttCon
       return new BufferedSttSession(params);
     },
     describe: () => ({
-      provider: "openai-compatible", mode: "utterance-buffered", model: config.model, partials: false,
+      provider: capabilities.id, mode: "utterance-buffered", model: config.model, partials: false,
       silenceMs: config.silenceMs, maxUtteranceMs: config.maxUtteranceMs, timeoutMs: config.timeoutMs, authenticated: !!config.apiKey,
     }),
   };

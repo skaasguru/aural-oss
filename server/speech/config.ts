@@ -156,7 +156,9 @@ export function resolveTtsConfig(env: Env, options: { requireDoubaoAppPair?: boo
 
 // ── STT ──────────────────────────────────────────────────────────────
 
-export type SttProviderId = AsrProvider | "openai-compatible";
+/** Utterance-buffered providers: one HTTP request per finished utterance. */
+export type BufferedSttProviderId = "openai-compatible" | "assemblyai";
+export type SttProviderId = AsrProvider | BufferedSttProviderId;
 
 export interface LegacySttConfig {
   provider: AsrProvider;
@@ -168,7 +170,7 @@ export interface LegacySttConfig {
 }
 
 export interface OpenAiCompatibleSttSettings {
-  provider: "openai-compatible";
+  provider: BufferedSttProviderId;
   baseUrl: string;
   apiKey?: string;
   model: string;
@@ -191,20 +193,24 @@ export interface OpenAiCompatibleSttSettings {
 
 export type SttConfig = LegacySttConfig | OpenAiCompatibleSttSettings;
 
+export function isBufferedSttConfig(config: SttConfig): config is OpenAiCompatibleSttSettings {
+  return config.provider === "openai-compatible" || config.provider === "assemblyai";
+}
+
 export function resolveSttProviderId(env: Env): SttProviderId {
   const value = env.VOICE_ASR_PROVIDER?.trim().toLowerCase();
-  if (value === "openai-compatible") return value;
+  if (value === "openai-compatible" || value === "assemblyai") return value;
   try {
     return resolveAsrProvider(value);
   } catch {
-    throw new SpeechConfigError("STT", value || "", ["VOICE_ASR_PROVIDER must be seed, qwen, qwen-audio or openai-compatible"]);
+    throw new SpeechConfigError("STT", value || "", ["VOICE_ASR_PROVIDER must be seed, qwen, qwen-audio, openai-compatible or assemblyai"]);
   }
 }
 
 export function resolveSttConfig(env: Env): SttConfig {
   const provider = resolveSttProviderId(env);
   const problems = new Problems();
-  if (provider !== "openai-compatible") {
+  if (provider !== "openai-compatible" && provider !== "assemblyai") {
     const apiKey = (provider === "seed" ? env.DOUBAO_API_KEY : env.QWEN_ASR_API_KEY)?.trim() || "";
     if (!apiKey) problems.add(provider === "seed" ? "DOUBAO_API_KEY" : "QWEN_ASR_API_KEY", `is required for VOICE_ASR_PROVIDER=${provider}`);
     let noiseThreshold: number | undefined;

@@ -9,7 +9,7 @@ variables (never `NEXT_PUBLIC_`).
 
 | Setting | Values | Default |
 |---|---|---|
-| `VOICE_ASR_PROVIDER` | `seed`, `qwen`, `qwen-audio`, `openai-compatible` | `seed` |
+| `VOICE_ASR_PROVIDER` | `seed`, `qwen`, `qwen-audio`, `openai-compatible`, `assemblyai` | `seed` |
 | `VOICE_TTS_PROVIDER` | `doubao`, `openai-compatible` | `doubao` |
 
 No aliases and no fallback: an unknown value, or a missing required variable, stops the relay at
@@ -48,6 +48,23 @@ Exceeding a response limit counts as a provider failure (toward `VOICE_STT_FAILU
 Exceeding a transcript limit is a local, non-fatal error: the speech is not captured, nothing is
 appended, and the user is told. Setting names appear only in server logs, never in the browser.
 
+## STT: `assemblyai` (utterance-buffered, AssemblyAI Sync API)
+
+Same local segmentation, ordering, retries, limits and circuit breaker as `openai-compatible`
+(every `VOICE_STT_*` setting above applies); only the wire format differs:
+`POST {VOICE_STT_BASE_URL}/v1/transcribe`, multipart `audio` (16 kHz mono WAV) plus a JSON
+`config` part (`language_codes`, optional `prompt`), with `VOICE_STT_MODEL` sent as the
+`X-AAI-Model` header (for example `universal-3-6-pro`). AssemblyAI ignores the language hint when a
+custom prompt is set.
+
+AssemblyAI has no OpenAI-shaped transcription route, so a gateway cannot translate it as a model
+provider. Point `VOICE_STT_BASE_URL` at AssemblyAI (`https://sync.assemblyai.com`) or at a route
+that forwards unchanged, such as a Bifrost relay (`http://bifrost:8080/relay/assemblyai-stt`,
+Bifrost 2.4 or newer); the gateway then holds the AssemblyAI key and `VOICE_STT_API_KEY` is the
+gateway's virtual key. AssemblyAI's live WebSocket transcription (partial transcripts) is not used:
+Bifrost relays forward plain HTTP only, so going through the gateway means one request per
+utterance.
+
 ### What the browser is told
 
 Every non-fatal STT failure (failed upload, timeout, bad response, backlog drop, transcript limit)
@@ -63,7 +80,7 @@ treats as connection-failover errors, so they are not swallowed.
 ## TTS: `openai-compatible`
 
 `POST {VOICE_TTS_BASE_URL}/audio/speech` with `{model, voice, input, response_format}`. Works with
-local Kokoro-FastAPI, OpenAI, Groq, or Bifrost. Voice per language: `VOICE_TTS_VOICE_EN` /
+local Kokoro-FastAPI, OpenAI, Groq, AssemblyAI (`https://tts.us.assemblyai.com/v1/openai`, `pcm`), or Bifrost. Voice per language: `VOICE_TTS_VOICE_EN` /
 `VOICE_TTS_VOICE_ZH`, falling back to `VOICE_TTS_VOICE`. Responses are decoded to the browser
 format (**mono 24 kHz s16le**; `use-voice.ts` reads binary frames as Int16Array), resampling WAV or
 raw PCM as needed. Compressed formats (`mp3`, `opus`, `aac`, `flac`) are decoded with `ffmpeg`
@@ -92,7 +109,8 @@ the relay's reply model.
 
 ## Samples, health, deployment
 
-- `docs/examples/speech-groq-kokoro.env`, `docs/examples/speech-bifrost.env` (placeholders only).
+- `docs/examples/speech-groq-kokoro.env`, `docs/examples/speech-bifrost.env`,
+  `docs/examples/speech-bifrost-assemblyai.env` (placeholders only).
 - `GET /api/health` (web) and `GET /health` (relay, same port as the WebSocket) report the active
   providers without credentials or URLs.
 - `Dockerfile` + `docker-compose.speech.example.yml`: two targets, `web` (Next.js standalone

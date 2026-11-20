@@ -1,4 +1,4 @@
-import type { SttConfig } from "../config";
+import { isBufferedSttConfig, type SttConfig } from "../config";
 import type { StreamingAsrOptions } from "../../streaming-asr";
 import { adaptLegacyAsr, type LegacyAsrConnection } from "./legacy";
 import { createOpenAiCompatibleSttProvider } from "./openai-compatible";
@@ -11,7 +11,9 @@ export interface SttDeps {
 
 /** Build exactly the provider the configuration names; there is no implicit fallback. */
 export function createSttProvider(config: SttConfig, deps: SttDeps): SttProvider {
-  if (config.provider === "openai-compatible") return createOpenAiCompatibleSttProvider(config);
+  if (isBufferedSttConfig(config)) {
+    return createOpenAiCompatibleSttProvider({ ...config, dialect: config.provider === "assemblyai" ? "assemblyai" : "openai" });
+  }
 
   const capabilities: SttCapabilities = {
     id: config.provider, mode: "native-streaming", partials: true, speechEvents: false, replaceTranscript: config.provider !== "seed",
