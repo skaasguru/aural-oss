@@ -10,8 +10,8 @@ Do not use these commands on the production SKaaS hosts.
 - `/srv/dev/apps/aural/access.json`, mode 0600, contains the generated dev access credentials.
   Do not print it into terminal logs or commit it. Public signup is disabled after installation.
 - `.env`, database files, storage objects, access credentials and backups remain outside Git.
-- Groq provider credentials remain in existing Bifrost for STT/text generation. Kokoro uses a
-  separate generated private-service key in protected `.env`, not a cloud-provider key.
+- Provider credentials (Anthropic, AssemblyAI, Groq) live only in Bifrost. Aural holds its Bifrost
+  virtual key in protected `.env`. See [Gateway-only AI](../../docs/bifrost-gateway.md).
 - VIP API/agent are intentionally paused with owner approval to free model memory; VIP DB,
   Bifrost and shared ingress remain running. Check capacity before resuming the VIP app.
 - No email delivery is configured; this is a development-only installation.
@@ -56,11 +56,10 @@ active. From `/srv/dev/apps/aural`:
 ```
 
 The script refuses a dirty worktree or mismatched revision, saves the old source pointer,
-image settings and app Compose configuration in a protected timestamped backup. It pauses a
-running Kokoro container during the memory-intensive image build, then resumes it and recreates
+image settings and app Compose configuration in a protected timestamped backup, builds, and recreates
 Aural web/relay. It checks public Aural/Bifrost readiness and preserves VIP's prior running/stopped
-state (VIP is currently intentionally paused). Failure restores old source/config/images and
-resumes a previously running Kokoro. Prior images are retained. It DOES NOT upgrade Supabase or apply new database
+state (VIP is currently intentionally paused). Failure restores old source/config/images.
+Prior images are retained. It DOES NOT upgrade Supabase or apply new database
 migrations; review and approve those separately. The idle flag is an operator assertion,
 not an automated session-occupancy measurement. The full update/rollback procedure must
 be rehearsed before relying on it for a production upgrade.
@@ -91,10 +90,7 @@ this live volume; a smaller replacement volume would require a separate migratio
 
 ## Voice acceptance
 
-STT remains `groq/whisper-large-v3`; text generation remains `groq/openai/gpt-oss-120b`,
-through Bifrost. TTS is now local Kokoro (`af_heart`) on Aural's private network, after the
-configured Gemini key failed authentication. See [Kokoro deployment](../../docs/kokoro-deployment.md)
-for the pinned image, limits, memory incident, successful browser playback and measured latency.
-Groq Whisper is utterance-buffered, not native live-partial transcription. Real-device microphone,
-interruptions/reconnects under load and full human interview/recording acceptance remain separate
-checks. The current CPU TTS is functional but not low-latency conversational inference.
+The selected providers and their verification are recorded in
+[Gateway-only AI](../../docs/bifrost-gateway.md). Transcription is utterance-buffered, not native
+live-partial transcription. Real-device microphone, interruptions/reconnects under load and full
+human interview/recording acceptance remain separate checks.

@@ -25,10 +25,17 @@ test("sample speech configs resolve to the documented providers", () => {
   const bTts = resolveTtsConfig(bifrost);
   if (bStt.provider === "openai-compatible") assert.equal(bStt.model, "groq/whisper-large-v3-turbo");
   if (bTts.provider === "openai-compatible") { assert.equal(bTts.maxInputChars, 200); assert.equal(bTts.format, "wav"); }
+
+  const aai = parseEnv("docs/examples/speech-bifrost-assemblyai.env");
+  const aStt = resolveSttConfig(aai);
+  const aTts = resolveTtsConfig(aai);
+  assert.equal(aStt.provider, "assemblyai");
+  if (aStt.provider === "assemblyai") { assert.equal(aStt.baseUrl, "http://bifrost:8080/relay/assemblyai-stt"); assert.equal(aStt.model, "universal-3-6-pro"); }
+  if (aTts.provider === "openai-compatible") { assert.equal(aTts.format, "pcm"); assert.equal(aTts.model, "assemblyai/assemblyai-tts-en"); }
 });
 
 test("no sample or compose file exposes provider settings through NEXT_PUBLIC_ variables", () => {
-  for (const file of ["docs/examples/speech-groq-kokoro.env", "docs/examples/speech-bifrost.env"]) {
+  for (const file of ["docs/examples/speech-groq-kokoro.env", "docs/examples/speech-bifrost.env", "docs/examples/speech-bifrost-assemblyai.env"]) {
     assert.ok(!/NEXT_PUBLIC_[A-Z_]*(KEY|TOKEN|SECRET|STT|TTS)/.test(readFileSync(file, "utf8")), file);
   }
 });

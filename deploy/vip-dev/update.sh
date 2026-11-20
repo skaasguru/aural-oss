@@ -24,37 +24,26 @@ import json,subprocess,sys
 with open(sys.argv[1],'w') as f:
     json.dump({n:subprocess.check_output(['docker','inspect',n,'--format','{{.State.Running}}']).decode().strip() for n in ['vip-api','vip-agent-1']},f)
 PY
-resume_kokoro=0
-if [[ $(docker inspect aural-kokoro-1 --format '{{.State.Running}}' 2>/dev/null || true) == true ]]; then
-  resume_kokoro=1
-fi
 rollback() {
   trap - ERR
   cp "$backup/env" .env
   cp "$backup/compose.app.yaml" compose.app.yaml
   ln -sfn "$old_source" source
-  if [[ $resume_kokoro == 1 ]]; then
-    docker compose -f compose.supabase.yaml -f compose.app.yaml up -d --no-deps --wait --wait-timeout 180 kokoro
-  fi
   docker compose -f compose.supabase.yaml -f compose.app.yaml up -d --no-deps --wait --wait-timeout 180 web relay
   printf '%s\n' 'Update failed; restored previous source, configuration and images.' >&2
 }
 trap 'status=$?; rollback; exit "$status"' ERR
-# A 4 GiB VM cannot safely run the inference model and the image builder at peak together.
-if [[ $resume_kokoro == 1 ]]; then docker stop aural-kokoro-1; fi
 ln -sfn "$new_source" source
 python3 build.py > logs/update-build.log 2>&1
 cp "$new_source/deploy/vip-dev/compose.app.yaml" compose.app.yaml
 docker compose -f compose.supabase.yaml -f compose.app.yaml config --quiet
-if [[ $resume_kokoro == 1 ]]; then
-  docker compose -f compose.supabase.yaml -f compose.app.yaml up -d --no-deps --wait --wait-timeout 180 kokoro
-fi
 docker compose -f compose.supabase.yaml -f compose.app.yaml up -d --no-deps --wait --wait-timeout 180 web relay
 python3 - "$backup/vip-state.json" "$revision" <<'PY'
 import base64,json,subprocess,sys,urllib.request
 from pathlib import Path
 a=json.loads(Path('access.json').read_text())
-h=base64.b64encode((a['http_username']+':'+a['http_password']).encode()).decode()
+# The Caddy access gate was removed; the header is harmless if it is ever restored.
+h=base64.b64encode((a.get('http_username','')+':'+a.get('http_password','')).encode()).decode()
 r=urllib.request.Request(a['url']+'/api/health',headers={'Authorization':'Basic '+h})
 with urllib.request.urlopen(r,timeout=30) as response: assert response.status==200
 before=json.loads(Path(sys.argv[1]).read_text())

@@ -19,10 +19,11 @@ disposable Auth/RLS/Storage flow, runtime readiness/non-root/ffmpeg smoke, and a
 real-ffmpeg tests on the actual amd64 relay image. Existing VIP/Bifrost services were not
 stopped or restarted; VIP public health remained HTTP 200.
 
-**Current speech output is self-hosted Kokoro**, model `kokoro`, English voice `af_heart`.
-Gemini's configured key returned HTTP 401, so the owner's fallback selection was applied.
-Both web TTS and actual voice-relay PCM playback passed a strict Chromium test. See the
-[Kokoro deployment record](../../docs/kokoro-deployment.md) for evidence and latency limits.
+**All AI traffic goes through the shared Bifrost gateway** with Aural's own virtual key. The
+target selection is Claude (Haiku/Sonnet) for text and AssemblyAI for speech-to-text and
+text-to-speech; see [Gateway-only AI](../../docs/bifrost-gateway.md) for routes, the Bifrost
+upgrade and the verified switch-over script. Self-hosted Kokoro was a temporary fallback and is no
+longer part of this deployment's configuration.
 
 To fit the model's peak memory on this 4 GiB VM, **VIP API and agent are intentionally paused**
 under the owner's approval. Their database, Bifrost and ingress remain up. Initial installation
@@ -116,5 +117,5 @@ private recording object upload and authenticated download, and disposal of the 
 Idle measured memory across the five local services was approximately 240 MiB (not a load benchmark).
 Compose merging/configuration and Caddy syntax were validated. On VIP dev, Groq Whisper transcription
 and a text completion succeeded through existing Bifrost; Groq Orpheus returned `model_terms_required`.
-Kokoro now passes successful HTTP synthesis and real relay PCM playback in Chromium. Physical
+Self-hosted Kokoro passed HTTP synthesis and real relay PCM playback in Chromium before it was retired. Physical
 microphone/iPhone permissions and a complete human interview/recording session remain unverified.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SpeechConfigError, resolveSttConfig, resolveTtsConfig } from "../server/speech/config";
+import { SpeechConfigError, resolveSttConfig, resolveTtsConfig, type OpenAiCompatibleSttSettings } from "../server/speech/config";
 import { encodeWavPcm16Mono } from "../server/speech/audio";
 import { createOpenAiCompatibleSttProvider, type OpenAiCompatibleSttConfig } from "../server/speech/stt/openai-compatible";
 import { createOpenAiCompatibleTtsBackend, type OpenAiCompatibleTtsConfig } from "../server/speech/tts/openai-compatible";
@@ -133,7 +133,7 @@ test("STT caps cumulative transcript characters and never truncates silently", a
 
 test("STT limits resolve from named env settings with sensible defaults and named validation errors", () => {
   const base = { VOICE_ASR_PROVIDER: "openai-compatible", VOICE_STT_BASE_URL: "http://x/v1", VOICE_STT_MODEL: "m" };
-  const def = resolveSttConfig(base) as Extract<ReturnType<typeof resolveSttConfig>, { provider: "openai-compatible" }>;
+  const def = resolveSttConfig(base) as OpenAiCompatibleSttSettings;
   assert.equal(def.maxResponseBytes, 1024 * 1024);
   assert.equal(def.maxTranscriptSegments, 200);
   assert.equal(def.maxTranscriptChars, 20_000);

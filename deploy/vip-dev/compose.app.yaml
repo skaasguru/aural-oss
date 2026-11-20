@@ -17,17 +17,21 @@ services:
       NEXT_PUBLIC_APP_URL: ${PUBLIC_APP_URL:?required}
       NEXT_PUBLIC_VOICE_RELAY_URL: wss://aural.dev.skaaslabs.com/ws/voice
       NEXT_PUBLIC_VOICE_RELAY_PRIMARY: voice
+      # BIFROST_API_KEY is this app's Bifrost virtual key (`aural-dev`): every model, speech and
+      # relay call is attributed to it in the gateway logs. No provider key ever reaches Aural.
       OPENAI_API_KEY: ${BIFROST_API_KEY:?required}
       OPENAI_BASE_URL: http://vip-bifrost:8080/v1
-      LLM_CHAT_MODEL: groq/openai/gpt-oss-120b
-      LLM_GENERATOR_MODEL: groq/openai/gpt-oss-120b
-      LLM_REPORT_MODEL: groq/openai/gpt-oss-120b
+      # Claude through Bifrost's `anthropic` provider: Haiku for interactive turns, Sonnet for reports.
+      LLM_CHAT_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-4-5}
+      LLM_GENERATOR_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-4-5}
+      LLM_REPORT_MODEL: ${AURAL_LLM_REPORT_MODEL:-anthropic/claude-sonnet-4-5}
+      # AssemblyAI TTS through Bifrost's `assemblyai` provider (OpenAI speech API, raw 24 kHz PCM).
       VOICE_TTS_PROVIDER: openai-compatible
       VOICE_TTS_BASE_URL: ${AURAL_TTS_BASE_URL:-http://vip-bifrost:8080/v1}
       VOICE_TTS_API_KEY: ${AURAL_TTS_API_KEY:-${BIFROST_API_KEY}}
-      VOICE_TTS_MODEL: ${AURAL_TTS_MODEL:-groq/canopylabs/orpheus-v1-english}
-      VOICE_TTS_VOICE: ${AURAL_TTS_VOICE:-troy}
-      VOICE_TTS_FORMAT: wav
+      VOICE_TTS_MODEL: ${AURAL_TTS_MODEL:-assemblyai/assemblyai-tts-en}
+      VOICE_TTS_VOICE: ${AURAL_TTS_VOICE:-aai-kyla}
+      VOICE_TTS_FORMAT: ${AURAL_TTS_FORMAT:-pcm}
       VOICE_TTS_MAX_INPUT_CHARS: ${AURAL_TTS_MAX_INPUT_CHARS:-200}
       VOICE_TTS_TIMEOUT_MS: ${AURAL_TTS_TIMEOUT_MS:-30000}
       VOICE_TTS_MAX_SEGMENTS: "30"
@@ -51,23 +55,26 @@ services:
       NODE_OPTIONS: --max-old-space-size=192
       VOICE_RELAY_PORT: "8766"
       VOICE_RELAY_HOST: 0.0.0.0
-      VOICE_ASR_PROVIDER: openai-compatible
-      VOICE_STT_BASE_URL: http://vip-bifrost:8080/v1
+      # AssemblyAI Sync STT through the Bifrost relay `assemblyai-stt` (one request per utterance).
+      VOICE_ASR_PROVIDER: ${AURAL_STT_PROVIDER:-assemblyai}
+      VOICE_STT_BASE_URL: ${AURAL_STT_BASE_URL:-http://vip-bifrost:8080/relay/assemblyai-stt}
       VOICE_STT_API_KEY: ${BIFROST_API_KEY:?required}
-      VOICE_STT_MODEL: groq/whisper-large-v3
+      VOICE_STT_MODEL: ${AURAL_STT_MODEL:-universal-3-6-pro}
+      VOICE_STT_LANGUAGE: en
+      # AssemblyAI TTS through Bifrost's `assemblyai` provider (OpenAI speech API, raw 24 kHz PCM).
       VOICE_TTS_PROVIDER: openai-compatible
       VOICE_TTS_BASE_URL: ${AURAL_TTS_BASE_URL:-http://vip-bifrost:8080/v1}
       VOICE_TTS_API_KEY: ${AURAL_TTS_API_KEY:-${BIFROST_API_KEY}}
-      VOICE_TTS_MODEL: ${AURAL_TTS_MODEL:-groq/canopylabs/orpheus-v1-english}
-      VOICE_TTS_VOICE: ${AURAL_TTS_VOICE:-troy}
-      VOICE_TTS_FORMAT: wav
+      VOICE_TTS_MODEL: ${AURAL_TTS_MODEL:-assemblyai/assemblyai-tts-en}
+      VOICE_TTS_VOICE: ${AURAL_TTS_VOICE:-aai-kyla}
+      VOICE_TTS_FORMAT: ${AURAL_TTS_FORMAT:-pcm}
       VOICE_TTS_MAX_INPUT_CHARS: ${AURAL_TTS_MAX_INPUT_CHARS:-200}
       VOICE_TTS_TIMEOUT_MS: ${AURAL_TTS_TIMEOUT_MS:-30000}
       VOICE_TTS_MAX_SEGMENTS: "30"
       RELAY_LLM_PROVIDER: openai
       RELAY_LLM_API_KEY: ${BIFROST_API_KEY:?required}
       RELAY_LLM_BASE_URL: http://vip-bifrost:8080/v1
-      RELAY_LLM_MODEL: groq/openai/gpt-oss-120b
+      RELAY_LLM_MODEL: ${AURAL_LLM_FAST_MODEL:-anthropic/claude-haiku-4-5}
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:8766/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
@@ -78,42 +85,3 @@ services:
       private: {}
       ingress:
         aliases: [aural-relay]
-  kokoro:
-    profiles: [kokoro]
-    # v0.10.0 manifest pinned after amd64 pull/inspection.
-    image: ghcr.io/remsky/kokoro-fastapi-cpu@sha256:f54c5960c2b9387f6349080a9944f8bc7e8cdb98a4ef9238cb0b0f9ff9795f44
-    restart: unless-stopped
-    mem_limit: 2048m
-    cpus: 1.5
-    pids_limit: 128
-    logging: {driver: json-file, options: {max-size: "5m", max-file: "2"}}
-    environment:
-      HOST: 0.0.0.0
-      PORT: "8880"
-      DEVICE_TYPE: cpu
-      USE_GPU: "false"
-      DOWNLOAD_MODEL: "false"
-      HF_HUB_OFFLINE: "1"
-      HF_HUB_DISABLE_TELEMETRY: "1"
-      WEB_CONCURRENCY: "1"
-      OMP_NUM_THREADS: "2"
-      MKL_NUM_THREADS: "2"
-      OPENBLAS_NUM_THREADS: "2"
-      API_LOG_LEVEL: WARNING
-      DEFAULT_VOICE: af_heart
-      ENABLE_WEB_PLAYER: "false"
-      ENABLE_DEBUG_ENDPOINTS: "false"
-      ENABLE_INNO_TUNER: "false"
-      ALLOW_DEV_UNLOAD: "false"
-      MAX_INPUT_LENGTH: "2000"
-      MAX_REQUEST_BODY_MB: "1"
-      API_KEYS: '["${AURAL_TTS_API_KEY:-${BIFROST_API_KEY:?required}}"]'
-    healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8880/health', timeout=5)"]
-      interval: 15s
-      timeout: 8s
-      retries: 10
-      start_period: 90s
-    networks:
-      private:
-        aliases: [aural-kokoro]

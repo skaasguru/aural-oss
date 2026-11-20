@@ -57,7 +57,7 @@ import {
     type BigModelAsrConfig,
 } from "./volcengine-asr";
 import { connectStreamingAsr } from "./streaming-asr";
-import { resolveSttConfig, type SttConfig } from "./speech/config";
+import { isBufferedSttConfig, resolveSttConfig, type SttConfig } from "./speech/config";
 import { createSttProvider } from "./speech/stt/registry";
 import type { SttEvent, SttProvider, SttSession } from "./speech/stt/types";
 import { sttErrorFrame } from "./speech/stt/user-error";
@@ -85,7 +85,7 @@ process.on("unhandledRejection", (reason) => {
 
 const RELAY_PORT = Number(process.env.VOICE_RELAY_PORT) || 8766;
 
-// STT provider (VOICE_ASR_PROVIDER): Seed remains the default; Qwen and OpenAI-compatible are opt-in.
+// STT provider (VOICE_ASR_PROVIDER): Seed remains the default; Qwen, OpenAI-compatible and AssemblyAI are opt-in.
 // Invalid configuration stops the relay before it accepts connections; there is no hidden fallback.
 let sttConfig: SttConfig;
 try {
@@ -95,7 +95,9 @@ try {
   process.exit(1);
 }
 const ASR_PROVIDER = sttConfig.provider;
-const QWEN_ASR_NOISE_THRESHOLD = sttConfig.provider === "openai-compatible" ? undefined : sttConfig.noiseThreshold;
+/** Utterance-buffered STT (OpenAI-compatible or AssemblyAI Sync): local VAD, no native partials. */
+const STT_BUFFERED = isBufferedSttConfig(sttConfig);
+const QWEN_ASR_NOISE_THRESHOLD = isBufferedSttConfig(sttConfig) ? undefined : sttConfig.noiseThreshold;
 // Every non-Seed provider reports the entire current turn, including revisions and retractions.
 const ASR_TRANSCRIPT_METADATA = ASR_PROVIDER === "seed" ? {} : { transcriptMode: "replace" };
 
@@ -770,7 +772,7 @@ const httpServer = createServer((req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 httpServer.listen(RELAY_PORT, process.env.VOICE_RELAY_HOST || undefined);
 log.info(`ASR: ${JSON.stringify(sttProvider.describe())}${sttConfig.provider === "qwen" ? `, model=${QWEN_ASR_MODEL}` : sttConfig.provider === "qwen-audio" ? `, model=${QWEN_AUDIO_ASR_MODEL}` : ""}`);
-log.info(sttConfig.provider === "openai-compatible"
+log.info(isBufferedSttConfig(sttConfig)
   ? `ASR VAD: local, silence=${sttConfig.silenceMs}ms, threshold=${sttConfig.vadThreshold}, max_utterance=${sttConfig.maxUtteranceMs}ms (no native partial transcripts)`
   : `ASR VAD: silence=${ASR_END_WINDOW_MS}ms${ASR_PROVIDER === "seed" ? `, force_to_speech=${ASR_FORCE_SPEECH_MS}ms` : `, noise_threshold=${QWEN_ASR_NOISE_THRESHOLD}`}`);
 log.info(`ASR final coalescing: normal=${ASR_FINAL_COALESCE_MS}ms, long=${ASR_LONG_FINAL_COALESCE_MS}ms, quiet=${ASR_PENDING_FINAL_QUIET_MS}ms, active_speech_hold=${ASR_ACTIVE_SPEECH_HOLD_MS}ms, max_active_hold=${ASR_PROVIDER === "seed" ? `${ASR_MAX_ACTIVE_SPEECH_HOLD_MS}ms` : "disabled"}, session_max_speech=${ASR_PROVIDER === "seed" ? `${ASR_SESSION_MAX_CONTINUOUS_SPEECH_MS}ms` : "disabled"}, stuck_rotate=${ASR_STUCK_TEXT_ROTATE_MS}ms, interim_stall_commit=${ASR_INTERIM_STALL_COMMIT_MS}ms`);
@@ -927,7 +929,7 @@ async function handleMicTestConnection(browserWs: WebSocket, language?: string) 
         case "transcript": onTranscript(event.response); break;
         case "error":
           log.error(`Mic test ASR error: ${event.code} ${event.message}`);
-          if (ASR_PROVIDER === "openai-compatible" && browserWs.readyState === WebSocket.OPEN) browserWs.send(sttErrorFrame(event));
+          if (STT_BUFFERED && browserWs.readyState === WebSocket.OPEN) browserWs.send(sttErrorFrame(event));
           if (event.fatal && asrWs === ws) {
             asrAlive = false;
             ws.close();
@@ -3077,7 +3079,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
           log.error(`ASR error: ${event.code} ${event.message}`);
           // Buffered STT: tell the user the utterance was lost (sanitized) instead of failing silently.
           // Seed/Qwen keep their transparent reconnect behavior and are not announced.
-          if (ASR_PROVIDER === "openai-compatible" && browserWs.readyState === WebSocket.OPEN) browserWs.send(sttErrorFrame(event));
+          if (STT_BUFFERED && browserWs.readyState === WebSocket.OPEN) browserWs.send(sttErrorFrame(event));
           // Provider-reported failures end a non-Seed session (as before); a failed buffered
           // upload is reported non-fatal and only ends the session once the circuit opens.
           if (event.fatal && asrWs === nextWs && ASR_PROVIDER !== "seed") nextWs.close();

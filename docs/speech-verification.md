@@ -52,12 +52,13 @@ ARM64 images were not deployed.
 
 ## Current voice acceptance
 
-Kokoro is now active after the configured Gemini key returned HTTP 401. A strict public
+Kokoro was activated after the configured Gemini key returned HTTP 401. A strict public
 Chromium test passed actual voice-relay initialization, audible PCM playback and playback
 acknowledgement, successful HTTP WAV synthesis/decoding, login/dashboard and live AI generation.
 The relay delivered 387720 bytes in nine played chunks; first audio took 22.857 seconds.
-Full physical-microphone/human-interview acceptance remains unverified. See
-[Kokoro deployment](kokoro-deployment.md) for the memory-cap failure, correction and CPU latency.
+Full physical-microphone/human-interview acceptance remains unverified. Kokoro on CPU was
+functional but slow (roughly 3-6 seconds of audio per 10-17 seconds) and has since been replaced
+by the gateway selection in [Gateway-only AI](bifrost-gateway.md).
 
 VIP API/agent are now intentionally paused with owner approval after verifying zero LiveKit
 participants. Bifrost, databases and shared ingress remain running. The VIP HTTP 200 and

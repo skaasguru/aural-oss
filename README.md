@@ -368,7 +368,7 @@ Run Aural on your own servers for full control over data, configuration, and cus
 - **Node.js** 20.19+, 22.13+, or 24+ and npm (Node 22 is used in CI)
 - **Supabase** project (cloud or local via `supabase start`)
 - **LLM API key** — at least one of: OpenAI, Google Gemini, Kimi (Moonshot), or MiniMax
-- **Speech provider configuration** — the primary relay can use legacy Seed/Qwen + Doubao, or independently selected OpenAI-compatible STT/TTS endpoints (including Groq, local Kokoro, or Bifrost). Azure OpenAI remains an optional separate backup. See [Speech Providers](docs/speech-providers.md).
+- **Speech provider configuration** — the primary relay can use legacy Seed/Qwen + Doubao, or independently selected OpenAI-compatible STT/TTS endpoints (including Groq, local Kokoro, or Bifrost) and AssemblyAI. Azure OpenAI remains an optional separate backup. See [Speech Providers](docs/speech-providers.md).
 
 #### 1. Clone and Install
 

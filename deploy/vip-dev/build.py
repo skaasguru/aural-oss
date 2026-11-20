@@ -11,8 +11,9 @@ try:
     env = dict(l.split('=', 1) for l in envfile.read_text().splitlines() if l and not l.startswith('#') and '=' in l)
     c = json.loads(subprocess.check_output(['docker','inspect','vip-bifrost-1']))[0]
     bf = dict(x.split('=',1) for x in c['Config']['Env'])
-    assert bf.get('BIFROST_API_KEY'), 'Bifrost runtime key absent'
-    env['BIFROST_API_KEY'] = bf['BIFROST_API_KEY']
+    # Aural authenticates to the shared gateway with its own virtual key (`aural-dev`).
+    assert bf.get('AURAL_BIFROST_VK'), 'Bifrost virtual key for Aural absent (run upgrade-bifrost.py)'
+    env['BIFROST_API_KEY'] = bf['AURAL_BIFROST_VK']
     revision = (root/'source/REVISION').read_text().strip()
     env['AURAL_WEB_IMAGE'] = 'aural-web:' + revision
     env['AURAL_RELAY_IMAGE'] = 'aural-relay:' + revision

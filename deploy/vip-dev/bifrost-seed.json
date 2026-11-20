@@ -1,0 +1,76 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "client": {
+    "drop_excess_requests": false,
+    "enable_logging": true,
+    "enforce_auth_on_inference": true
+  },
+  "providers": {
+    "openrouter": { "keys": [ { "name": "openrouter-primary", "value": "env.OPENROUTER_API_KEY", "models": ["*"], "weight": 1.0 } ] },
+    "groq":       { "keys": [ { "name": "groq-primary", "value": "env.GROQ_API_KEY", "models": ["*"], "weight": 1.0 } ] },
+    "gemini":     { "keys": [ { "name": "gemini-primary", "value": "env.GEMINI_API_KEY", "models": ["*"], "weight": 1.0 } ] },
+    "anthropic":  { "keys": [ { "name": "anthropic-primary", "value": "env.ANTHROPIC_API_KEY", "models": ["*"], "weight": 1.0 } ] },
+    "assemblyai": {
+      "keys": [ { "name": "assemblyai-primary", "value": "env.ASSEMBLYAI_API_KEY", "models": ["*"], "weight": 1.0 } ],
+      "network_config": { "base_url": "https://tts.us.assemblyai.com", "default_request_timeout_in_seconds": 60 },
+      "custom_provider_config": {
+        "base_provider_type": "openai",
+        "allowed_requests": { "list_models": true, "speech": true, "speech_stream": true },
+        "request_path_overrides": {
+          "list_models": "/v1/openai/models",
+          "speech": "/v1/openai/audio/speech",
+          "speech_stream": "/v1/openai/audio/speech"
+        }
+      }
+    }
+  },
+  "relays": [
+    {
+      "name": "assemblyai-stt",
+      "description": "AssemblyAI Sync STT (one request per finished utterance)",
+      "base_url": "https://sync.assemblyai.com",
+      "auth": { "type": "bearer" },
+      "credential": { "value": "env.ASSEMBLYAI_API_KEY" },
+      "network": { "timeout_seconds": 40 },
+      "usage": { "units_path": "audio_duration_ms", "cost_per_unit": 0.000000125 },
+      "routes": [
+        { "method": "POST", "path": "/v1/transcribe" },
+        { "method": "GET", "path": "/v1/warm", "billable": false }
+      ]
+    }
+  ],
+  "governance": {
+    "auth_config": {
+      "is_enabled": true,
+      "admin_username": "env.BIFROST_ADMIN_USERNAME",
+      "admin_password": "env.BIFROST_ADMIN_PASSWORD",
+      "disable_auth_on_inference": false
+    },
+    "virtual_keys": [
+      {
+        "id": "vk-aural-dev",
+        "name": "aural-dev",
+        "value": "env.AURAL_BIFROST_VK",
+        "is_active": true,
+        "provider_configs": [
+          { "provider": "anthropic", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 },
+          { "provider": "assemblyai", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 },
+          { "provider": "groq", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 }
+        ],
+        "relay_grants": [ { "relay_name": "assemblyai-stt" } ]
+      },
+      {
+        "id": "vk-vip-dev",
+        "name": "vip-dev",
+        "value": "env.VIP_BIFROST_VK",
+        "is_active": true,
+        "provider_configs": [
+          { "provider": "openrouter", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 },
+          { "provider": "groq", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 },
+          { "provider": "gemini", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 }
+        ]
+      }
+    ]
+  },
+  "config_store": { "enabled": true, "type": "sqlite", "config": { "path": "./config.db" } }
+}
