@@ -25,7 +25,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { maxFollowUpsForDepth } from "../src/lib/follow-up-depth";
 import { bt } from "../src/lib/i18n";
 import { createLogger } from "../src/lib/logger";
-import { callRelayLLM, logRelayLlmStartup } from "./relay-llm";
+import { callInterviewTurnLLM, callRelayLLM, INTERVIEW_TURN_MAX_TOKENS, logRelayLlmStartup } from "./relay-llm";
 import {
     activeSpeechHoldAction,
     asrPendingFinalDelayMs,
@@ -1990,20 +1990,6 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
     return agentCtx;
   }
 
-  function getMaxTokensForQuestion(type: string): number {
-    switch (type) {
-      case "CODING":
-      case "WHITEBOARD":
-      case "RESEARCH":
-        return 250;
-      case "SINGLE_CHOICE":
-      case "MULTIPLE_CHOICE":
-        return 200;
-      default:
-        return 150;
-    }
-  }
-
   async function generateControlledResponse(opts?: { forceSkip?: boolean }): Promise<string> {
     const forceSkip = opts?.forceSkip ?? false;
     const currentQ = sortedQuestions[currentQuestionIndex];
@@ -2104,9 +2090,8 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
       ? PROMPTS.response.codingWb(promptParams)
       : PROMPTS.response.normal(promptParams));
 
-    const maxTokens = getMaxTokensForQuestion(currentQ.type);
     const startMs = Date.now();
-    let response = await callRelayLLM(prompt, maxTokens);
+    let response = await callInterviewTurnLLM(prompt);
 
     response = response.replace(/^(追问型|结束型|FOLLOW[- ]?UP|WRAP[- ]?UP)\s*[:：]\s*/i, "").trim();
 
@@ -2162,7 +2147,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
       if (recentAgentResponses.length > 5) recentAgentResponses.shift();
     }
 
-    log.info(`Response LLM (${Date.now() - startMs}ms, ${maxTokens}tok, turn ${userTurnsOnCurrentQ}, follow-ups ${followUpsDone}/${effectiveMaxFollowUps}): "${response.slice(0, 100)}..."`);
+    log.info(`Response LLM (${Date.now() - startMs}ms, ${INTERVIEW_TURN_MAX_TOKENS}tok, turn ${userTurnsOnCurrentQ}, follow-ups ${followUpsDone}/${effectiveMaxFollowUps}): "${response.slice(0, 100)}..."`);
     return response;
   }
 

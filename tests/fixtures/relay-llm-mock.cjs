@@ -8,6 +8,8 @@ Module._load = function(request, parent) {
     return {
       logRelayLlmStartup() {},
       callRelayLLM: async () => 'Thanks. Could you explain how you tested the architecture?',
+      callInterviewTurnLLM: async () => 'Thanks. Could you explain how you tested the architecture?',
+      INTERVIEW_TURN_MAX_TOKENS: 512,
     };
   }
   return originalLoad.apply(this, arguments);

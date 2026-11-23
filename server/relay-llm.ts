@@ -196,6 +196,7 @@ async function callOpenAICompatible(
   endpoint: RelayLlmEndpoint,
   prompt: string,
   maxTokens: number,
+  interviewTurn: boolean,
 ): Promise<string> {
   const res = await fetch(`${endpoint.baseUrl}/chat/completions`, {
     method: "POST",
@@ -208,6 +209,10 @@ async function callOpenAICompatible(
       messages: [{ role: "user", content: prompt }],
       temperature: endpoint.temperature,
       max_tokens: maxTokens,
+      // Bifrost translates this to Anthropic's thinking: { type: "disabled" }.
+      ...(interviewTurn && endpoint.model === "anthropic/claude-haiku-5-5"
+        ? { reasoning: { effort: "none" } }
+        : {}),
     }),
   });
 
@@ -224,16 +229,23 @@ async function callEndpoint(
   endpoint: RelayLlmEndpoint,
   prompt: string,
   maxTokens: number,
+  interviewTurn: boolean,
 ): Promise<string> {
   if (!endpoint.apiKey) {
     throw new Error(`No API key for relay model ${endpoint.model}`);
   }
   return endpoint.useGemini
     ? callGemini(endpoint, prompt, maxTokens)
-    : callOpenAICompatible(endpoint, prompt, maxTokens);
+    : callOpenAICompatible(endpoint, prompt, maxTokens, interviewTurn);
 }
 
-export async function callRelayLLM(prompt: string, maxTokens = 150): Promise<string> {
+export const INTERVIEW_TURN_MAX_TOKENS = 512;
+
+export function callInterviewTurnLLM(prompt: string): Promise<string> {
+  return callRelayLLM(prompt, INTERVIEW_TURN_MAX_TOKENS, true);
+}
+
+export async function callRelayLLM(prompt: string, maxTokens = 150, interviewTurn = false): Promise<string> {
   const chain = getEndpointChain();
   logConfig(chain);
 
@@ -248,7 +260,7 @@ export async function callRelayLLM(prompt: string, maxTokens = 150): Promise<str
   for (let i = 0; i < configured.length; i++) {
     const endpoint = configured[i]!;
     try {
-      const text = await callEndpoint(endpoint, prompt, maxTokens);
+      const text = await callEndpoint(endpoint, prompt, maxTokens, interviewTurn);
       if (i > 0) {
         log.warn(
           `Relay LLM recovered via fallback ${endpoint.model} (${Date.now() - startMs}ms)`,

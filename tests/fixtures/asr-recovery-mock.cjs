@@ -78,6 +78,8 @@ Module._load = function(request, parent) {
     if (request === './relay-llm') return {
       logRelayLlmStartup() {},
       callRelayLLM: async () => 'Could you explain how you tested the architecture?',
+      callInterviewTurnLLM: async () => 'Could you explain how you tested the architecture?',
+      INTERVIEW_TURN_MAX_TOKENS: 512,
     };
     if (request === './volcengine-tts') return {
       ...originalLoad.apply(this, arguments),
